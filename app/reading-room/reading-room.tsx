@@ -405,7 +405,12 @@ export function ReadingRoom({ library }: { library: LibraryData }) {
         pickupComplete={pickupComplete}
         onClose={() => setSelected(null)}
       />
-      {createOpen && <CreateRoomDialog onClose={() => setCreateOpen(false)} />}
+      {createOpen && (
+        <CreateRoomDialog
+          onClose={() => setCreateOpen(false)}
+          launchTweetUrl='https://x.com/transitive_bs/status/2097328857926033415'
+        />
+      )}
     </main>
   )
 }

@@ -40,7 +40,7 @@ Window rain is confined to eleven glass panes, leaving the mullions, frame, sill
 
 ## Sharing and creating a room
 
-GitHub and X icons sit at the lower left in the room’s muted parchment color. The header initially shows only the brand. After entry, its upper-right “Create your own Reading Room” action appears as a compact version of the same expanding-arrow component. It opens a native dialog explaining the Goodreads import experiment and inviting readers to reply to the launch thread with their Goodreads profile. `CreateRoomDialog` accepts an optional `launchTweetUrl`. Until that tweet exists, its reply action is disabled and the dialog says “Launch thread coming soon.” Do not substitute an unrelated tweet or profile URL for that action.
+GitHub and X icons sit at the lower left in the room’s muted parchment color. The header initially shows only the brand. After entry, its upper-right “Create your own Reading Room” action appears as a compact version of the same expanding-arrow component. It opens a native dialog explaining the Goodreads import experiment and inviting readers to reply with their Goodreads profile. Its “Reply on X” action opens the [launch thread](https://x.com/transitive_bs/status/2097328857926033415) in a new tab.
 
 ## Evaluation
 
