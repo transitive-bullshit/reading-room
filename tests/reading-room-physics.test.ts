@@ -12,7 +12,7 @@ import {
   PHYSICS_STEP,
   type BookBody,
   type BookDimensions
-} from '../app/prototypes/reading-room/variants/physics-world'
+} from '../app/reading-room/scene/physics-world'
 
 interface SimulatedBook {
   body: BookBody

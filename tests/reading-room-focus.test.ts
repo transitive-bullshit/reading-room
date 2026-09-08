@@ -3,25 +3,26 @@ import { readFileSync } from 'node:fs'
 import { test, type TestContext } from 'node:test'
 import { Quaternion, Vector3 } from 'three'
 
+import { getFeaturedBooks } from '../lib/featured-books'
 import type { LibraryData } from '../lib/library-schema'
 import {
   alignCamera,
   makeCamera
-} from '../app/prototypes/reading-room/variants/physics-camera'
+} from '../app/reading-room/scene/physics-camera'
 import {
   makeFocusArrangement,
   resizeBookCollider
-} from '../app/prototypes/reading-room/variants/physics-focus'
+} from '../app/reading-room/scene/physics-focus'
 import {
   applyBookRearrangement,
   createBookRearrangement,
   makePileArrangement,
   type BookRearrangement
-} from '../app/prototypes/reading-room/variants/physics-rearrange'
+} from '../app/reading-room/scene/physics-rearrange'
 import {
   buildPileGroups,
   type PileGroup
-} from '../app/prototypes/reading-room/variants/pile-groups'
+} from '../app/reading-room/scene/pile-groups'
 import {
   applyPileBounds,
   bookDimensions,
@@ -32,7 +33,7 @@ import {
   TABLE_DEPTH,
   TABLE_WIDTH,
   type BookDimensions
-} from '../app/prototypes/reading-room/variants/physics-world'
+} from '../app/reading-room/scene/physics-world'
 
 const library = JSON.parse(
   readFileSync(new URL('../data/library.json', import.meta.url), 'utf8')
@@ -40,41 +41,8 @@ const library = JSON.parse(
 const aspects = JSON.parse(
   readFileSync(new URL('../data/cover-aspects.json', import.meta.url), 'utf8')
 ) as Record<string, number>
-// Match the live Big Pile's curated 25 covers followed by the remaining 61.
-// Order changes which wide books share a row, so it affects the fit itself.
-const displayIds = [
-  '77566',
-  '43419431',
-  '20518872',
-  '15839976',
-  '222697645',
-  '40514364',
-  '18630',
-  '77711',
-  '910863',
-  '18373',
-  '1126719',
-  '54659324',
-  '23168817',
-  '25451264',
-  '6136470',
-  '123224254',
-  '32109569',
-  '36681361',
-  '375802',
-  '827',
-  '35009620',
-  '35506021',
-  '39706490',
-  '21425079',
-  '76620'
-]
-const books = [
-  ...displayIds.map((id) => library.books.find((book) => book.id === id)!),
-  ...library.books.filter(
-    (book) => book.personal.rating === 5 && !displayIds.includes(book.id)
-  )
-]
+// Keep real cover order: row composition affects fit and contact stability.
+const books = getFeaturedBooks(library.books)
 const dimensionsById = new Map(
   books.map((book) => [
     book.id,
@@ -158,7 +126,7 @@ async function createWorld(t: TestContext) {
 
 void test('every real group exposes all of its covers within the table without overlap', () => {
   assert.equal(groups.length, 18)
-  assert.equal(books.length, 86)
+  assert.equal(books.length, 42)
   const camera = makeCamera()
   alignCamera(camera)
   for (const group of groups) {
@@ -272,8 +240,8 @@ await test('resizing every book preserves its body, collider, mass, pose and mot
           `${id}: collider ${dimension} must match the visible scale`
         )
     }
-    assert.equal(world.bodies.len(), 87)
-    assert.equal(world.colliders.len(), 87)
+    assert.equal(world.bodies.len(), books.length + 1)
+    assert.equal(world.colliders.len(), books.length + 1)
   }
 })
 
@@ -282,10 +250,14 @@ await test('the largest group travels from its pile and settles with live focus 
   const largest = groups.reduce((best, group) =>
     group.books.length > best.books.length ? group : best
   )
-  assert.equal(largest.books.length, 24)
+  assert.equal(largest.books.length, 12)
   const input = focusBooks(largest)
   const arrangement = makeFocusArrangement(input)
-  assert.ok(arrangement.scale < 1)
+  assert.equal(
+    arrangement.scale,
+    1,
+    'The largest featured group fits at full size'
+  )
   const entries = input.map(({ id, dimensions }, index) => {
     const target = arrangement.targets.get(id)!
     const body = makeBookBody(physics, world, dimensions, {
@@ -325,7 +297,7 @@ await test('the largest group travels from its pile and settles with live focus 
     }
     world.step()
   }
-  assert.equal(released, 24)
+  assert.equal(released, largest.books.length)
   const polygons = new Map<string, Point[]>()
   for (const { id, dimensions, target, body } of entries) {
     assert.equal(body.isDynamic(), true)
@@ -358,7 +330,7 @@ await test('the largest group travels from its pile and settles with live focus 
   assertNoOverlap(polygons, 'Settled largest group')
 })
 
-await test('all 86 parked and focused books return to their groups with the original physical bodies', async (t) => {
+await test('all 42 parked and focused books return to their groups with the original physical bodies', async (t) => {
   for (const grouping of ['genre', 'author', 'published'] as const) {
     for (const reduced of [false, true]) {
       await t.test(`${grouping}, reduced motion ${reduced}`, async (t) => {
@@ -453,8 +425,8 @@ await test('all 86 parked and focused books return to their groups with the orig
             )
         }
         advance(10, false)
-        assert.equal(world.bodies.len(), 87)
-        assert.equal(world.colliders.len(), 87)
+        assert.equal(world.bodies.len(), books.length + 1)
+        assert.equal(world.colliders.len(), books.length + 1)
         for (const { id, body, handle, colliderHandle, guide } of entries) {
           assert.equal(body.handle, handle)
           assert.equal(body.collider(0).handle, colliderHandle)

@@ -6,9 +6,9 @@ import {
   alignCamera,
   makeCamera,
   offscreenDropPosition
-} from '../app/prototypes/reading-room/variants/physics-camera'
-import { getPileDrop } from '../app/prototypes/reading-room/variants/physics-pile'
-import { bookDimensions } from '../app/prototypes/reading-room/variants/physics-world'
+} from '../app/reading-room/scene/physics-camera'
+import { getPileDrop } from '../app/reading-room/scene/physics-pile'
+import { bookDimensions } from '../app/reading-room/scene/physics-world'
 
 void test('every rotated book starts entirely above the render frame at desktop table sizes', () => {
   for (const fit of [1, 0.76]) {

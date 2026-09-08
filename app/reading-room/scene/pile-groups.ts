@@ -167,9 +167,29 @@ function publishedGroups(books: LibraryBook[]): PileGroup[] {
   return groups
 }
 
+// These featured titles emphasize scientific ideas and discovery even though
+// their source shelves also include Space Opera. Keep the source genres intact.
+const featuredGenreOverrides = new Map<string, string>([
+  ['40514364', 'Science fiction'], // Children of Time: evolution and alien intelligence.
+  ['25451264', 'Science fiction'], // Death's End: cosmology, alongside its trilogy.
+  ['39706490', 'Science fiction'], // Dragon's Egg: life under neutron-star physics.
+  ['112520', 'Science fiction'], // Rama II: investigation of an alien artifact.
+  ['32109569', 'Science fiction'] // We Are Legion: self-replicating probes and engineering.
+])
+
 // More specific shelves win over broad shelves. Format labels such as Audiobook,
 // Ebooks and Fiction never determine a genre pile; original metadata stays intact.
 function primaryGenre(book: LibraryBook) {
+  const curated = featuredGenreOverrides.get(book.id)
+  if (curated) return curated
+  // Present the Red Rising saga as Fantasy while retaining its imported shelves.
+  if (
+    book.series.some(
+      (series) =>
+        series.url === 'https://www.goodreads.com/series/117100-red-rising-saga'
+    )
+  )
+    return 'Fantasy'
   const genres = new Set(book.genres.map((genre) => genre.toLowerCase()))
   if (genres.has('litrpg')) return 'LitRPG'
   if (genres.has('light novel') || genres.has('manga') || genres.has('manhwa'))
@@ -177,6 +197,12 @@ function primaryGenre(book: LibraryBook) {
   if (genres.has('military science fiction') || genres.has('military fiction'))
     return 'Military fiction'
   if (genres.has('classics')) return 'Classics'
+  if (
+    genres.has('high fantasy') ||
+    genres.has('epic fantasy') ||
+    genres.has('urban fantasy')
+  )
+    return 'Fantasy'
   if (genres.has('space opera')) return 'Space opera'
   if (genres.has('science fiction')) return 'Science fiction'
   if (genres.has('fantasy')) return 'Fantasy'
@@ -240,6 +266,6 @@ export function buildPileGroups(
     case 'genre':
       return genreGroups(books)
     default:
-      return [{ id: 'free', label: 'The Big Pile', books: [...books] }]
+      return [{ id: 'free', label: 'Free pile', books: [...books] }]
   }
 }

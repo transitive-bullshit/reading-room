@@ -27,6 +27,19 @@ function variation(index: number, seed: number) {
   return value - Math.floor(value)
 }
 
+function boundedGaussian(index: number, seed: number, limit: number) {
+  // Reject distant tails instead of clamping them into piles along an edge.
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const radius = Math.sqrt(
+      -2 * Math.log(Math.max(1e-9, variation(index, seed + attempt * 2)))
+    )
+    const angle = variation(index, seed + attempt * 2 + 1) * Math.PI * 2
+    const sample = radius * Math.cos(angle)
+    if (Math.abs(sample) < limit) return sample
+  }
+  return 0
+}
+
 function orientation(yaw: number, pitch: number, roll: number): Rotation {
   const cy = Math.cos(yaw / 2)
   const sy = Math.sin(yaw / 2)
@@ -52,10 +65,9 @@ export function getPileDrop(
   const order = Math.max(0, Math.floor(index))
   const total = Math.max(1, Math.floor(count))
   const large = total > 25
-  // A sunflower footprint gives a broad, irregular foundation. Later books
-  // return toward its middle to make a mound instead of 25 isolated objects.
-  const angle = order * Math.PI * (3 - Math.sqrt(5)) + 0.35
-  const radius = Math.sqrt((((order * 7) % total) + 0.55) / total)
+  // A broad bell-shaped footprint keeps a low base and a denser center.
+  // Opposite samples balance the two tails even with a small featured set;
+  // independent depth, rotation, and timing keep the falling books irregular.
   const lateTaper = order / total > 0.72 ? (large ? 0.9 : 0.75) : 1
   const footprint = mobile ? 0.9 : 1
   const yaw = (variation(order, 1) - 0.5) * 1.7
@@ -63,18 +75,23 @@ export function getPileDrop(
   const roll = (variation(order, 3) - 0.5) * 0.36
   const halfDiagonal = Math.hypot(dimensions.width, dimensions.depth) / 2
   const reachX = Math.min(
-    large ? 3.55 : 2.75,
+    large ? 3.5 : 2.75,
     TABLE_WIDTH / 2 - halfDiagonal - (large ? 0.3 : 0.8)
   )
   const reachZ = Math.min(
-    large ? 1.85 : 1.34,
+    large ? 1.7 : 1.34,
     TABLE_DEPTH / 2 - halfDiagonal - (large ? 0.15 : 0.55)
   )
+  const spreadX = large ? 2.7 : 1.6
+  const spreadZ = large ? 1.1 : 0.65
+  const horizontal =
+    boundedGaussian(Math.floor(order / 2), 31, reachX / spreadX) * spreadX
+  const depth = boundedGaussian(order, 71, reachZ / spreadZ) * spreadZ
   return {
     position: {
-      x: Math.cos(angle) * radius * reachX * lateTaper * footprint,
+      x: horizontal * (order % 2 ? -1 : 1) * lateTaper * footprint,
       y: 6.2 + variation(order, 4) * 1.25 + dimensions.height / 2,
-      z: Math.sin(angle) * radius * reachZ * lateTaper
+      z: depth * lateTaper
     },
     rotation: orientation(yaw, pitch, roll),
     delayMs: order * (large ? Math.min(24, 2000 / Math.max(1, total - 1)) : 40)

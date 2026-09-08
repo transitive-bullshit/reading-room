@@ -1,6 +1,6 @@
 # Project context
 
-Reading Room presents a personal book collection as physical piles on a photographed library desk. The current application lives at `app/prototypes/reading-room/` and offers The Pile and The Big Pile.
+Reading Room presents a personal book collection as physical piles on a photographed library desk. The current application lives at `app/reading-room/` and powers the main landing page at `/` with one curated featured table.
 
 Read the context relevant to the change:
 

@@ -3,35 +3,38 @@ import { readFileSync } from 'node:fs'
 import { test, type TestContext } from 'node:test'
 import * as THREE from 'three'
 
+import { getFeaturedBooks } from '../lib/featured-books'
 import type { LibraryData } from '../lib/library-schema'
 import {
   alignCamera,
   makeCamera,
   offscreenDropPosition
-} from '../app/prototypes/reading-room/variants/physics-camera'
-import { getPileDrop } from '../app/prototypes/reading-room/variants/physics-pile'
+} from '../app/reading-room/scene/physics-camera'
+import { getPileDrop } from '../app/reading-room/scene/physics-pile'
 import {
   createMoundMemory,
   type MoundSeed
-} from '../app/prototypes/reading-room/variants/physics-mound'
+} from '../app/reading-room/scene/physics-mound'
 import {
   buildPileGroups,
   type PileGrouping
-} from '../app/prototypes/reading-room/variants/pile-groups'
+} from '../app/reading-room/scene/pile-groups'
 import {
   applyBookRearrangement,
   createBookRearrangement,
   makePileArrangement,
   type BookRearrangement
-} from '../app/prototypes/reading-room/variants/physics-rearrange'
+} from '../app/reading-room/scene/physics-rearrange'
 import {
   applyPileBounds,
   bookDimensions,
   loadPhysics,
   makeBookBody,
   makeWorld,
-  PHYSICS_STEP
-} from '../app/prototypes/reading-room/variants/physics-world'
+  PHYSICS_STEP,
+  TABLE_DEPTH,
+  TABLE_WIDTH
+} from '../app/reading-room/scene/physics-world'
 
 const library = JSON.parse(
   readFileSync(new URL('../data/library.json', import.meta.url), 'utf8')
@@ -39,40 +42,8 @@ const library = JSON.parse(
 const aspects = JSON.parse(
   readFileSync(new URL('../data/cover-aspects.json', import.meta.url), 'utf8')
 ) as Record<string, number>
-// Match the live Big Pile's curated 25 covers followed by the remaining 61.
-const displayIds = [
-  '77566',
-  '43419431',
-  '20518872',
-  '15839976',
-  '222697645',
-  '40514364',
-  '18630',
-  '77711',
-  '910863',
-  '18373',
-  '1126719',
-  '54659324',
-  '23168817',
-  '25451264',
-  '6136470',
-  '123224254',
-  '32109569',
-  '36681361',
-  '375802',
-  '827',
-  '35009620',
-  '35506021',
-  '39706490',
-  '21425079',
-  '76620'
-]
-const books = [
-  ...displayIds.map((id) => library.books.find((book) => book.id === id)!),
-  ...library.books.filter(
-    (book) => book.personal.rating === 5 && !displayIds.includes(book.id)
-  )
-]
+// Keep real cover order: row composition affects fit and contact stability.
+const books = getFeaturedBooks(library.books)
 
 async function setup(t: TestContext) {
   const physics = await loadPhysics()
@@ -252,7 +223,7 @@ function assertSameTargets(actual: MoundPoses, expected: MoundPoses) {
 }
 
 function assertRestored(sim: Simulation, initial: MoundPoses) {
-  assert.equal(sim.entries.length, 86)
+  assert.equal(sim.entries.length, 42)
   let positionErrorSquared = 0
   let rotationErrorSquared = 0
   for (const { id, body, guide } of sim.entries) {
@@ -309,8 +280,8 @@ function assertGrouped(
   sim: Awaited<ReturnType<typeof setup>>,
   arrangement: Arrangement
 ) {
-  assert.equal(sim.entries.length, 86)
-  assert.equal(arrangement.targets.size, 86)
+  assert.equal(sim.entries.length, 42)
+  assert.equal(arrangement.targets.size, books.length)
   for (const entry of sim.entries) {
     const point = entry.body.translation()
     const destination = arrangement.targets.get(entry.id)!.position
@@ -337,7 +308,134 @@ function assertGrouped(
   }
 }
 
-await test('all 86 books regroup from a physical heap and remain in their assigned piles', async (t) => {
+function targetBounds(
+  entry: Simulation['entries'][number],
+  arrangement: Arrangement
+) {
+  const target = arrangement.targets.get(entry.id)!
+  const rotation = new THREE.Quaternion().copy(target.rotation)
+  const bounds = new THREE.Box3()
+  for (const x of [-1, 1])
+    for (const y of [-1, 1])
+      for (const z of [-1, 1])
+        bounds.expandByPoint(
+          new THREE.Vector3(
+            (x * entry.dimensions.width) / 2,
+            (y * entry.dimensions.height) / 2,
+            (z * entry.dimensions.depth) / 2
+          )
+            .applyQuaternion(rotation)
+            .add(target.position)
+        )
+  return bounds
+}
+
+await test('four books share one stack and the fifth opens a lower second stack', async (t) => {
+  const sim = await setup(t)
+  const members = books
+    .filter(
+      (book) =>
+        sim.entries.find(({ id }) => id === book.id)!.dimensions.width <= 1.5
+    )
+    .slice(0, 5)
+  const entries = sim.entries.filter(({ id }) =>
+    members.some((book) => book.id === id)
+  )
+  const arrange = (count: number) =>
+    makePileArrangement(
+      entries,
+      [{ id: 'boundary', label: 'Boundary', books: members.slice(0, count) }],
+      'genre'
+    )
+  const four = arrange(4)
+  const five = arrange(5)
+  assert.equal(
+    new Set([...four.targets.values()].map(({ position }) => position.x)).size,
+    1
+  )
+  assert.equal(
+    new Set([...five.targets.values()].map(({ position }) => position.x)).size,
+    2
+  )
+  assert.equal(four.targets.size, 4)
+  assert.equal(five.targets.size, 5)
+  assert.deepEqual(
+    five.labels.map(({ count }) => count),
+    [5]
+  )
+  const height = (arrangement: Arrangement) =>
+    Math.max(
+      ...entries
+        .filter(({ id }) => arrangement.targets.has(id))
+        .map((entry) => targetBounds(entry, arrangement).max.y)
+    )
+  assert.ok(
+    height(five) < height(four),
+    'Adding the fifth book should spread the section and lower its tallest stack'
+  )
+})
+
+await test('all featured organized sections use compact stacks with separated book volumes', async (t) => {
+  const sim = await setup(t)
+  let sections = 0
+  for (const grouping of ['genre', 'author', 'published'] as const) {
+    const groups = buildPileGroups(books, grouping)
+    const arrangement = makePileArrangement(sim.entries, groups, grouping)
+    const bounds = new Map(
+      sim.entries.map((entry) => [entry.id, targetBounds(entry, arrangement)])
+    )
+    assert.equal(arrangement.targets.size, 42)
+    assert.deepEqual(
+      arrangement.labels.map(({ id, label, count }) => ({ id, label, count })),
+      groups.map(({ id, label, books }) => ({ id, label, count: books.length }))
+    )
+    for (const group of groups) {
+      sections++
+      const ids = new Set(group.books.map(({ id }) => id))
+      const members = sim.entries.filter(({ id }) => ids.has(id))
+      const lanes = new Set(
+        members.map(({ id }) => arrangement.targets.get(id)!.position.x)
+      )
+      assert.equal(
+        lanes.size,
+        members.length < 5 ? 1 : 2,
+        `${grouping}/${group.label}: stack count`
+      )
+      const height = Math.max(...members.map(({ id }) => bounds.get(id)!.max.y))
+      const combinedThickness = members.reduce(
+        (sum, { dimensions }) => sum + dimensions.height,
+        0
+      )
+      assert.ok(
+        height <= combinedThickness * (members.length < 5 ? 1 : 0.75) + 0.025,
+        `${grouping}/${group.label}: stack height ${height.toFixed(3)} wastes the adjacent lane`
+      )
+    }
+    const volumes = [...bounds]
+    for (let first = 0; first < volumes.length; first++) {
+      const [id, box] = volumes[first]!
+      assert.ok(
+        box.min.y >= 0 &&
+          Math.max(Math.abs(box.min.x), Math.abs(box.max.x)) <
+            TABLE_WIDTH / 2 - 0.05 &&
+          Math.max(Math.abs(box.min.z), Math.abs(box.max.z)) <
+            TABLE_DEPTH / 2 - 0.05,
+        `${grouping}/${id}: book volume leaves the usable table`
+      )
+      for (let second = first + 1; second < volumes.length; second++) {
+        const [otherId, other] = volumes[second]!
+        assert.equal(
+          box.intersectsBox(other),
+          false,
+          `${grouping}: volumes ${id} and ${otherId} overlap`
+        )
+      }
+    }
+  }
+  assert.equal(sections, 18)
+})
+
+await test('all 42 books regroup from a physical heap and remain in their assigned piles', async (t) => {
   const sim = await setup(t)
   sim.advance(12)
   for (const grouping of ['genre', 'author', 'published'] as const) {
@@ -448,8 +546,16 @@ await test('Free returns above every saved pose and falls gently into the natura
     ...releases.map(({ clearance }) => clearance)
   )
   const minimumFall = Math.min(...releases.map(({ fall }) => fall))
-  assert.equal(guided.size, 86, 'Every book must join the local rearrangement')
-  assert.equal(released.size, 86, 'Every book must return to dynamic physics')
+  assert.equal(
+    guided.size,
+    books.length,
+    'Every book must join the local rearrangement'
+  )
+  assert.equal(
+    released.size,
+    books.length,
+    'Every book must return to dynamic physics'
+  )
   assert.ok(
     maximumLiftExcess <= 0.4001,
     `Free lifted a book ${maximumLiftExcess.toFixed(3)} above its start or destination`

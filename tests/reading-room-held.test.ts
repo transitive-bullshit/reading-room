@@ -3,22 +3,22 @@ import { test } from 'node:test'
 
 import { Euler, Quaternion, Vector3 } from 'three'
 
-import { makeCamera } from '../app/prototypes/reading-room/variants/physics-camera'
+import { makeCamera } from '../app/reading-room/scene/physics-camera'
 import {
   applyBookDrag,
   createDragTarget
-} from '../app/prototypes/reading-room/variants/physics-drag'
+} from '../app/reading-room/scene/physics-drag'
 import {
   applyHeldBookTorque,
   type HeldBookRotation
-} from '../app/prototypes/reading-room/variants/physics-held'
+} from '../app/reading-room/scene/physics-held'
 import {
   bookDimensions,
   loadPhysics,
   makeBookBody,
   makeWorld,
   PHYSICS_STEP
-} from '../app/prototypes/reading-room/variants/physics-world'
+} from '../app/reading-room/scene/physics-world'
 
 function cameraTarget(rollDegrees: number) {
   return makeCamera()

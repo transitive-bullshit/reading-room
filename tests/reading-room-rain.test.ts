@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import {
   afterHoursRainSize,
   afterHoursWindowPanes
-} from '../app/prototypes/reading-room/variants/rain-window-geometry'
+} from '../app/reading-room/scene/rain-window-geometry'
 
 function onGlass(x: number, y: number) {
   return afterHoursWindowPanes.some((points) => {

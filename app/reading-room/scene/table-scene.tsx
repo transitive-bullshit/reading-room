@@ -5,7 +5,8 @@ import * as THREE from 'three'
 
 import type { LibraryBook } from '@/lib/library-schema'
 
-import { RoomBackdrop, type SceneProps } from './photo-scene'
+import { RoomBackdrop } from './room-backdrop'
+import type { SceneProps } from './scene-props'
 import { disposeBookMesh, makeBookMesh } from './physics-book'
 import { applyHeldBookTorque } from './physics-held'
 import { createBookImpacts } from './physics-impacts'
@@ -35,7 +36,6 @@ import {
   type PileTarget
 } from './physics-rearrange'
 import {
-  applyCoverUpTorque,
   applyPileBounds,
   loadPhysics,
   makeBookBody,
@@ -45,10 +45,10 @@ import {
   type BookDimensions
 } from './physics-world'
 
-import './after-hours-3d.css'
+import './table-scene.css'
 
 type Phase =
-  | 'entering'
+  | 'prepared'
   | 'resting'
   | 'pickup'
   | 'selected'
@@ -58,7 +58,6 @@ type Phase =
   | 'scattering'
   | 'parking'
   | 'parked'
-type SceneMode = 'arranged' | 'pile'
 interface PhysicalBook {
   book: LibraryBook
   mesh: THREE.Group
@@ -83,6 +82,7 @@ interface PhysicalBook {
 }
 interface Runtime {
   setBooks: (books: LibraryBook[]) => Promise<void>
+  start: () => void
   select: (id?: string) => void
   pickUp: (id: string) => void
   focus: (id?: string) => void
@@ -90,28 +90,53 @@ interface Runtime {
   arrange: (grouping: PileGrouping, activeGroupId?: string) => void
   destroy: () => void
 }
-const placements = [
-  { x: -3.2, z: -1.38, yaw: -0.16 },
-  { x: -0.9, z: -0.8, yaw: 0.11 },
-  { x: 2.14, z: -1.3, yaw: -0.13 },
-  { x: 3.16, z: 1.08, yaw: 0.13 },
-  { x: -3.09, z: 1.16, yaw: 0.13 },
-  { x: -0.43, z: -0.32, yaw: -0.19, support: 1 },
-  { x: 0.14, z: 1.53, yaw: -0.08 },
-  { x: 2.43, z: -1.04, yaw: 0.15, support: 2 }
-]
-const mobilePlacements = [
-  { x: -2, z: -2.1, yaw: -0.1 },
-  { x: 1.54, z: -2.1, yaw: 0.09 },
-  { x: -2.05, z: 0.15, yaw: -0.1 },
-  { x: 2.05, z: 0.15, yaw: 0.1 },
-  { x: -2, z: 2.3, yaw: 0.07 },
-  { x: 1.97, z: -2.03, yaw: -0.17, support: 1 },
-  { x: 2, z: 2.3, yaw: -0.07 },
-  { x: -1.7, z: 0.23, yaw: 0.12, support: 2 }
-]
 const ease = (value: number) => 1 - (1 - value) ** 3
 const smooth = (value: number) => value * value * (3 - 2 * value)
+
+async function prepareBookMeshes(
+  books: LibraryBook[],
+  anisotropy: number,
+  images: HTMLImageElement[]
+) {
+  const completed = new Set<THREE.Group>()
+  let abandoned = false
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const discard = (mesh: THREE.Group) => {
+    disposeBookMesh(mesh)
+    mesh.clear()
+  }
+  try {
+    return await Promise.race([
+      Promise.all([
+        Promise.all(
+          books.map(async (book) => {
+            const result = await makeBookMesh(book, anisotropy, {
+              maxTextureEdge: 768,
+              compact: true
+            })
+            if (abandoned) discard(result.mesh)
+            else completed.add(result.mesh)
+            return result
+          })
+        ),
+        Promise.all(images.map((image) => image.decode()))
+      ]).then(([meshes]) => meshes),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error('Room assets took too long to prepare')),
+          30_000
+        )
+      })
+    ])
+  } catch (err) {
+    abandoned = true
+    completed.forEach(discard)
+    completed.clear()
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 async function createRuntime(
   host: HTMLDivElement,
@@ -122,13 +147,9 @@ async function createRuntime(
     onReady: () => void
     onImpact: NonNullable<SceneProps['onImpact']>
     onGroupSelect: (groupId: string) => void
-  },
-  mode: SceneMode,
-  largePile: boolean
+  }
 ): Promise<Runtime> {
   const physics = await loadPhysics()
-  const world = makeWorld(physics)
-  const impacts = createBookImpacts(physics, world)
   const scene = new THREE.Scene()
   const camera = makeCamera()
   const renderer = new THREE.WebGLRenderer({
@@ -136,7 +157,10 @@ async function createRuntime(
     antialias: true,
     powerPreference: 'high-performance'
   })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, largePile ? 1.5 : 2))
+  const world = makeWorld(physics)
+  world.forEachRigidBody((body) => body.setEnabled(false))
+  const impacts = createBookImpacts(physics, world)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
   renderer.setSize(1600, 900, false)
   renderer.setClearColor(0, 0)
   renderer.shadowMap.enabled = true
@@ -222,6 +246,9 @@ async function createRuntime(
     )
   let batch = 0
   let destroyed = false
+  let prepared = false
+  let startRequested = false
+  let started = false
   let selected: string | undefined
   let hovered: string | undefined
   let focused: string | undefined
@@ -320,68 +347,60 @@ async function createRuntime(
     const gutter = 8 / scale
     const visibleLeft = (hostBounds.left - frameBounds.left) / scale + gutter
     const visibleRight = (hostBounds.right - frameBounds.left) / scale - gutter
-    const visibleBottom = (hostBounds.bottom - frameBounds.top) / scale - gutter
-    const controls = host
-      .closest('.reading-room')
+    const room = host.closest('.reading-room')
+    const controls = room
       ?.querySelector('.room-grouping')
       ?.getBoundingClientRect()
+    const heading = room
+      ?.querySelector('.room-heading')
+      ?.getBoundingClientRect()
+    const upperEdge = mobile ? controls?.bottom : heading?.bottom
+    const lowerEdge = mobile ? hostBounds.bottom : controls?.top
     const visibleTop =
-      ((controls?.bottom ?? hostBounds.top) - frameBounds.top) / scale + gutter
+      ((upperEdge ?? hostBounds.top) - frameBounds.top) / scale + gutter
+    const visibleBottom =
+      ((lowerEdge ?? hostBounds.bottom) - frameBounds.top) / scale - gutter
     projected.forEach((point, index) => {
       const element = labelLayer.children[index] as HTMLElement | undefined
       if (!element) return
-      if (largePile && !activeGroupId) {
-        const row = projected.filter(
-          (_, otherIndex) =>
-            Math.sign(pileLabels[otherIndex]!.position.z) ===
-            Math.sign(pileLabels[index]!.position.z)
-        )
-        const left = Math.max(
-          visibleLeft,
-          ...row
-            .filter((other) => other.x < point.x)
-            .map((other) => (other.x + point.x) / 2 + gutter / 2)
-        )
-        const right = Math.min(
-          visibleRight,
-          ...row
-            .filter((other) => other.x > point.x)
-            .map((other) => (other.x + point.x) / 2 - gutter / 2)
-        )
-        // Give each projected pile its own cell before wrapping the label, so
-        // keeping an edge label on screen cannot cover its neighbor's button.
-        element.style.width = `${Math.min(220, right - left)}px`
-        const x = THREE.MathUtils.clamp(
-          point.x,
-          left + element.offsetWidth / 2,
-          right - element.offsetWidth / 2
-        )
-        const y = THREE.MathUtils.clamp(
-          point.y,
-          visibleTop + element.offsetHeight / 2,
-          visibleBottom - element.offsetHeight / 2
-        )
-        element.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
-        return
-      }
-      const spacing = Math.min(
-        280,
-        ...projected
-          .filter(
-            (other, otherIndex) =>
-              otherIndex !== index && Math.abs(other.y - point.y) < 90
-          )
-          .map((other) => Math.abs(other.x - point.x))
+      const row = projected.filter(
+        (_, otherIndex) =>
+          Math.sign(pileLabels[otherIndex]!.position.z) ===
+          Math.sign(pileLabels[index]!.position.z)
       )
-      element.style.width = `${Math.min(220, Math.max(64, spacing * 0.82))}px`
-      element.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) translate(-50%, -50%)`
+      const left = Math.max(
+        visibleLeft,
+        ...row
+          .filter((other) => other.x < point.x)
+          .map((other) => (other.x + point.x) / 2 + gutter / 2)
+      )
+      const right = Math.min(
+        visibleRight,
+        ...row
+          .filter((other) => other.x > point.x)
+          .map((other) => (other.x + point.x) / 2 - gutter / 2)
+      )
+      // Give each projected pile its own cell before wrapping the label, so
+      // keeping an edge label on screen cannot cover its neighbor's button.
+      element.style.width = `${Math.min(220, right - left)}px`
+      const x = THREE.MathUtils.clamp(
+        point.x,
+        left + element.offsetWidth / 2,
+        right - element.offsetWidth / 2
+      )
+      const y = THREE.MathUtils.clamp(
+        point.y,
+        visibleTop + element.offsetHeight / 2,
+        visibleBottom - element.offsetHeight / 2
+      )
+      element.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
     })
   }
   const resize = () => {
     const scale = Math.max(host.clientWidth / 1600, host.clientHeight / 900)
     frame.style.setProperty('--scene-scale', String(scale))
     const nextMobile = host.clientWidth <= 620
-    const organized = largePile && requestedGrouping !== 'free'
+    const organized = requestedGrouping !== 'free'
     if (nextMobile)
       alignCamera(
         camera,
@@ -391,44 +410,6 @@ async function createRuntime(
       )
     else
       alignCamera(camera, Math.min(1, (host.clientWidth / scale - 65) / 1200))
-    if (nextMobile !== mobile && mode === 'arranged') {
-      mobile = nextMobile
-      for (const entry of entries) {
-        if (entry.phase !== 'resting' && entry.phase !== 'entering') continue
-        const place = (mobile ? mobilePlacements : placements)[
-          entry.order % placements.length
-        ]!
-        const support =
-          place.support === undefined
-            ? undefined
-            : entries.find(
-                (item) =>
-                  item.order === place.support && item.phase !== 'leaving'
-              )
-        entry.from.copy(entry.mesh.position)
-        entry.fromRotation.copy(entry.mesh.quaternion)
-        entry.fromScale = entry.scale
-        entry.home.set(
-          place.x,
-          entry.dimensions.height / 2 +
-            (support?.dimensions.height ?? 0) +
-            0.018,
-          place.z
-        )
-        entry.homeRotation.setFromAxisAngle(
-          new THREE.Vector3(0, 1, 0),
-          place.yaw
-        )
-        entry.start = performance.now()
-        entry.duration = reducedMotion ? 100 : 300
-        entry.phase = 'returning'
-        entry.body.setBodyType(
-          physics.RigidBodyType.KinematicPositionBased,
-          true
-        )
-        entry.body.collider(0).setEnabled(false)
-      }
-    }
     const resizedMound = nextMobile !== mobile && Boolean(moundMemory)
     const wasRestoring = requestedGrouping === 'free' && Boolean(moundTargets)
     mobile = nextMobile
@@ -481,6 +462,7 @@ async function createRuntime(
   }
   function pickUp(id: string) {
     if (
+      !started ||
       selected ||
       entries.some(
         (entry) => entry.phase === 'pickup' || entry.phase === 'scattering'
@@ -497,34 +479,30 @@ async function createRuntime(
     entry.guide = undefined
     entry.body.resetForces(true)
     entry.body.resetTorques(true)
-    if (mode === 'pile') {
-      entry.phase = 'scattering'
-      entry.start = performance.now()
-      entry.duration = 280
-      scatterAbove(
-        entry.body,
-        entries
-          .filter(
-            (other) =>
-              other !== entry && other.phase === 'resting' && other.included
-          )
-          .map((other) => ({
-            body: other.body,
-            dimensions: visibleDimensions(other)
-          }))
-      )
-      wakeNeighbours(entry)
-      setHover()
-      return
-    }
-    beginPickup(entry)
+    entry.phase = 'scattering'
+    entry.start = performance.now()
+    entry.duration = 280
+    scatterAbove(
+      entry.body,
+      entries
+        .filter(
+          (other) =>
+            other !== entry && other.phase === 'resting' && other.included
+        )
+        .map((other) => ({
+          body: other.body,
+          dimensions: visibleDimensions(other)
+        }))
+    )
+    wakeNeighbours(entry)
+    setHover()
   }
   function beginPickup(entry: PhysicalBook) {
     if (!entry.keepGroupedHome) {
       entry.home.copy(entry.mesh.position)
       entry.homeRotation.copy(entry.mesh.quaternion)
     }
-    if (mode === 'pile' && !entry.keepGroupedHome) {
+    if (!entry.keepGroupedHome) {
       const heading = new THREE.Vector3(0, 0, 1).applyQuaternion(
         entry.mesh.quaternion
       )
@@ -552,7 +530,7 @@ async function createRuntime(
     setHover()
   }
   function down(event: PointerEvent) {
-    if (event.button !== 0 || selected) return
+    if (!started || event.button !== 0 || selected) return
     if (
       (event.target as HTMLElement).closest(
         'button, a, input, select, textarea'
@@ -571,13 +549,11 @@ async function createRuntime(
     event.preventDefault()
     host.setPointerCapture(event.pointerId)
     const turnClearance =
-      mode === 'pile'
-        ? (Math.hypot(entry.dimensions.width, entry.dimensions.depth) *
-            entry.scale) /
-            2 +
-          (entry.dimensions.height * entry.scale) / 2 +
-          0.08
-        : 0.58 + entry.dimensions.height / 2
+      (Math.hypot(entry.dimensions.width, entry.dimensions.depth) *
+        entry.scale) /
+        2 +
+      (entry.dimensions.height * entry.scale) / 2 +
+      0.08
     dragPlane.constant = -Math.max(entry.mesh.position.y + 0.12, turnClearance)
     const center = entry.mesh.position.clone().project(camera)
     press = {
@@ -674,7 +650,6 @@ async function createRuntime(
     moundMemory = undefined
     moundTargets = undefined
     moundPristine = pristine
-    if (!largePile) return
     const active = entries.filter((entry) => entry.phase !== 'leaving')
     if (!active.length) return
     const seeds = active.map((entry, index) => {
@@ -725,7 +700,7 @@ async function createRuntime(
     resize()
     arrangementExempt.clear()
     const revision = ++arrangementRevision
-    if (!largePile || !entries.length) return
+    if (!started || !entries.length) return
     const remembered = rememberMound()
     if (grouping === 'free') {
       if (remembered)
@@ -893,7 +868,7 @@ async function createRuntime(
         }
       } else if (entry.phase === 'scattering') {
         if (progress === 1) beginPickup(entry)
-      } else if (entry.phase === 'entering' || entry.phase === 'returning') {
+      } else if (entry.phase === 'returning') {
         setBookScale(
           entry,
           THREE.MathUtils.lerp(entry.fromScale, entry.homeScale, ease(progress))
@@ -941,7 +916,7 @@ async function createRuntime(
         const extraction = Math.min(1, progress / 0.36)
         const lift = THREE.MathUtils.clamp((progress - 0.2) / 0.8, 0, 1)
         position.copy(entry.from)
-        position.x -= (mode === 'pile' ? 0.34 : 0.92) * smooth(extraction)
+        position.x -= 0.34 * smooth(extraction)
         position.lerp(pickupTarget, smooth(lift))
         rotation.slerpQuaternions(
           entry.fromRotation,
@@ -980,6 +955,7 @@ async function createRuntime(
   function animate(now: number) {
     if (destroyed) return
     animationFrame = requestAnimationFrame(animate)
+    if (!started) return
     const frameSeconds = Math.max(0, (now - previousTime) / 1000)
     accumulator = Math.min(0.1, accumulator + frameSeconds)
     previousTime = now
@@ -1017,19 +993,14 @@ async function createRuntime(
         entry.body.resetForces(false)
         entry.body.resetTorques(false)
         const held = press?.entry === entry && press.drag
-        if (mode === 'pile') {
-          if (held && press) applyHeldBookTorque(entry.body, press.orientation)
-        } else applyCoverUpTorque(entry.body, entry.dimensions.mass)
-        if (mode === 'pile') {
-          const limitX =
-            mobile && !(largePile && requestedGrouping !== 'free') ? 2.65 : 3.85
-          applyPileBounds(
-            entry.body,
-            entry.dimensions,
-            limitX,
-            activeGroupId ? 2.3 : undefined
-          )
-        }
+        if (held && press) applyHeldBookTorque(entry.body, press.orientation)
+        const limitX = mobile && requestedGrouping === 'free' ? 2.65 : 3.85
+        applyPileBounds(
+          entry.body,
+          entry.dimensions,
+          limitX,
+          activeGroupId ? 2.3 : undefined
+        )
         if (held && press?.target)
           applyBookDrag(entry.body, press.target, now / 1000 - accumulator)
       }
@@ -1108,10 +1079,57 @@ async function createRuntime(
     }
     renderer.render(scene, camera)
   }
+  function releasePreparedBooks() {
+    if (!prepared || !startRequested || destroyed) return
+    const now = performance.now()
+    if (!started) {
+      started = true
+      previousTime = now
+      accumulator = 0
+      world.forEachRigidBody((body) => {
+        if (body.isFixed()) body.setEnabled(true)
+      })
+    }
+    const waiting = entries.filter((entry) => entry.phase === 'prepared')
+    for (const entry of waiting) {
+      // The entry screen may stay open through a viewport change. Recalculate
+      // the hidden spawn poses against the camera used at the actual start.
+      const drop = getPileDrop(
+        entry.order,
+        waiting.length,
+        mobile,
+        entry.dimensions
+      )
+      entry.home.set(
+        drop.position.x,
+        entry.dimensions.height / 2 + 0.4,
+        drop.position.z
+      )
+      entry.homeRotation.copy(drop.rotation)
+      entry.from.copy(
+        offscreenDropPosition(
+          camera,
+          entry.dimensions,
+          entry.homeRotation,
+          new THREE.Vector3(drop.position.x, drop.position.y, drop.position.z)
+        )
+      )
+      entry.fromRotation.copy(entry.homeRotation)
+      entry.body.setTranslation(entry.from, false)
+      entry.body.setRotation(entry.homeRotation, false)
+      entry.mesh.position.copy(entry.from)
+      entry.mesh.quaternion.copy(entry.homeRotation)
+      entry.start = now + 80 + drop.delayMs
+      entry.phase = 'dropping'
+    }
+    resetMoundMemory(true)
+    if (requestedGrouping !== 'free') arrange(requestedGrouping, activeGroupId)
+  }
   animationFrame = requestAnimationFrame(animate)
   return {
     async setBooks(books) {
       const current = ++batch
+      prepared = false
       arrangementRevision++
       moundMemory?.dispose()
       moundMemory = undefined
@@ -1138,91 +1156,47 @@ async function createRuntime(
         )
         entry.body.collider(0).setEnabled(false)
       }
-      const loaded = await Promise.all(
-        books.map((book) =>
-          makeBookMesh(book, renderer.capabilities.getMaxAnisotropy(), {
-            maxTextureEdge: largePile ? 768 : undefined,
-            compact: largePile
-          })
+      let loaded: Awaited<ReturnType<typeof prepareBookMeshes>>
+      try {
+        loaded = await prepareBookMeshes(
+          books,
+          renderer.capabilities.getMaxAnisotropy(),
+          [...(host.closest('.reading-room') ?? host).querySelectorAll('img')]
         )
-      )
+      } catch (err) {
+        if (destroyed || current !== batch) return
+        throw err
+      }
       if (destroyed || current !== batch) {
         loaded.forEach(({ mesh }) => disposeBookMesh(mesh))
         return
       }
       loaded.forEach(({ mesh, dimensions }, index) => {
-        if (mode === 'pile') {
-          const drop = getPileDrop(index, loaded.length, mobile, dimensions)
-          const home = new THREE.Vector3(
-            drop.position.x,
-            dimensions.height / 2 + 0.4,
-            drop.position.z
-          )
-          const homeRotation = new THREE.Quaternion(
-            drop.rotation.x,
-            drop.rotation.y,
-            drop.rotation.z,
-            drop.rotation.w
-          )
-          const from = offscreenDropPosition(
-            camera,
-            dimensions,
-            homeRotation,
-            new THREE.Vector3(drop.position.x, drop.position.y, drop.position.z)
-          )
-          const body = makeBookBody(physics, world, dimensions, from)
-          impacts.track(body)
-          body.setRotation(drop.rotation, true)
-          body.setEnabled(false)
-          mesh.position.copy(from)
-          mesh.quaternion.copy(homeRotation)
-          mesh.visible = false
-          scene.add(mesh)
-          entries.push({
-            book: books[index]!,
-            mesh,
-            dimensions,
-            body,
-            home,
-            homeRotation,
-            from,
-            fromRotation: homeRotation.clone(),
-            phase: 'dropping',
-            scale: 1,
-            homeScale: 1,
-            fromScale: 1,
-            included: true,
-            order: index,
-            start: performance.now() + 80 + drop.delayMs,
-            duration: 1
-          })
-          return
-        }
-        const place = (mobile ? mobilePlacements : placements)[
-          index % placements.length
-        ]!
-        const supportHeight =
-          place.support !== undefined
-            ? (loaded[place.support]?.dimensions.height ?? 0)
-            : 0
+        const drop = getPileDrop(index, loaded.length, mobile, dimensions)
         const home = new THREE.Vector3(
-          place.x,
-          dimensions.height / 2 + supportHeight + 0.018,
-          place.z
+          drop.position.x,
+          dimensions.height / 2 + 0.4,
+          drop.position.z
         )
-        const from = home
-          .clone()
-          .add(new THREE.Vector3(reducedMotion ? 0 : 13, 0, 0))
-        const homeRotation = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(0, 1, 0),
-          place.yaw
+        const homeRotation = new THREE.Quaternion(
+          drop.rotation.x,
+          drop.rotation.y,
+          drop.rotation.z,
+          drop.rotation.w
         )
-        const body = makeBookBody(physics, world, dimensions, from, place.yaw)
+        const from = offscreenDropPosition(
+          camera,
+          dimensions,
+          homeRotation,
+          new THREE.Vector3(drop.position.x, drop.position.y, drop.position.z)
+        )
+        const body = makeBookBody(physics, world, dimensions, from)
         impacts.track(body)
-        body.setBodyType(physics.RigidBodyType.KinematicPositionBased, true)
-        body.collider(0).setEnabled(false)
+        body.setRotation(drop.rotation, true)
+        body.setEnabled(false)
         mesh.position.copy(from)
         mesh.quaternion.copy(homeRotation)
+        mesh.visible = false
         scene.add(mesh)
         entries.push({
           book: books[index]!,
@@ -1233,20 +1207,66 @@ async function createRuntime(
           homeRotation,
           from,
           fromRotation: homeRotation.clone(),
-          phase: 'entering',
+          phase: 'prepared',
           scale: 1,
           homeScale: 1,
           fromScale: 1,
           included: true,
           order: index,
-          start: performance.now() + (reducedMotion ? 0 : 170 + index * 32),
-          duration: reducedMotion ? 100 : 500
+          start: 0,
+          duration: 1
         })
       })
-      resetMoundMemory(true)
-      if (largePile && requestedGrouping !== 'free')
-        arrange(requestedGrouping, activeGroupId)
+      // Upload covers and material textures while every prepared book stays
+      // hidden, so the first falling books do not trigger those GPU uploads.
+      const textures = new Set<THREE.Texture>()
+      for (const { mesh } of loaded)
+        mesh.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return
+          const materials = Array.isArray(object.material)
+            ? object.material
+            : [object.material]
+          for (const material of materials) {
+            if (!(material instanceof THREE.MeshStandardMaterial)) continue
+            if (material.map) textures.add(material.map)
+            if (material.bumpMap) textures.add(material.bumpMap)
+          }
+        })
+      textures.forEach((texture) => renderer.initTexture(texture))
+      renderer.initTexture(glowTexture)
+      renderer.compile(scene, camera)
+      // Exercise the first draw offscreen as well: this uploads geometry and
+      // initializes the shadow programs without exposing or activating books.
+      const warmup = new THREE.WebGLRenderTarget(1, 1)
+      const culling = new Map<THREE.Mesh, boolean>()
+      try {
+        renderer.setRenderTarget(warmup)
+        for (const { mesh } of loaded) {
+          mesh.visible = true
+          mesh.traverse((object) => {
+            if (!(object instanceof THREE.Mesh)) return
+            culling.set(object, object.frustumCulled)
+            object.frustumCulled = false
+          })
+        }
+        renderer.render(scene, camera)
+        renderer.getContext().finish()
+      } finally {
+        for (const { mesh } of loaded) mesh.visible = false
+        culling.forEach((value, mesh) => {
+          mesh.frustumCulled = value
+        })
+        renderer.setRenderTarget(null)
+        warmup.dispose()
+      }
+      prepared = true
       callbacks.onReady()
+      releasePreparedBooks()
+    },
+    start() {
+      if (startRequested) return
+      startRequested = true
+      releasePreparedBooks()
     },
     pickUp,
     arrange,
@@ -1275,6 +1295,7 @@ async function createRuntime(
       }
     },
     destroy() {
+      if (destroyed) return
       destroyed = true
       moundMemory?.dispose()
       batch++
@@ -1302,11 +1323,7 @@ async function createRuntime(
   }
 }
 
-export default function AfterHours3D(
-  props: SceneProps & { mode?: SceneMode; largePile?: boolean }
-) {
-  const mode = props.mode ?? 'arranged'
-  const largePile = props.largePile ?? false
+export default function TableScene(props: SceneProps) {
   const stage = useRef<HTMLDivElement>(null),
     frame = useRef<HTMLDivElement>(null)
   const runtime = useRef<Runtime | null>(null),
@@ -1315,8 +1332,7 @@ export default function AfterHours3D(
     latest.current = props
   }, [props])
   const [hovered, setHovered] = useState<LibraryBook | null>(null)
-  const [ready, setReady] = useState(false),
-    [failed, setFailed] = useState(false)
+  const [ready, setReady] = useState(false)
   const batchKey = props.books.map((book) => book.id).join('|')
   const visibleBooks = useMemo(
     () =>
@@ -1329,19 +1345,16 @@ export default function AfterHours3D(
   )
   useEffect(() => {
     let cancelled = false
-    void createRuntime(
-      stage.current!,
-      frame.current!,
-      {
-        onSelect: (...args) => latest.current.onSelect(...args),
-        onHover: setHovered,
-        onReady: () => setReady(true),
-        onImpact: (impact) => latest.current.onImpact?.(impact),
-        onGroupSelect: (groupId) => latest.current.onGroupSelect?.(groupId)
+    void createRuntime(stage.current!, frame.current!, {
+      onSelect: (...args) => latest.current.onSelect(...args),
+      onHover: setHovered,
+      onReady: () => {
+        setReady(true)
+        latest.current.onReady?.()
       },
-      mode,
-      largePile
-    )
+      onImpact: (impact) => latest.current.onImpact?.(impact),
+      onGroupSelect: (groupId) => latest.current.onGroupSelect?.(groupId)
+    })
       .then((instance) => {
         if (cancelled) {
           instance.destroy()
@@ -1353,21 +1366,37 @@ export default function AfterHours3D(
           latest.current.grouping ?? 'free',
           latest.current.activeGroupId
         )
+        if (latest.current.started) instance.start()
         return instance.setBooks(latest.current.books)
       })
       .catch((err: unknown) => {
+        if (cancelled) return
         console.error('Unable to initialize the reading table', err)
-        if (!cancelled) setFailed(true)
+        runtime.current?.destroy()
+        runtime.current = null
+        latest.current.onError?.()
       })
     return () => {
       cancelled = true
       runtime.current?.destroy()
       runtime.current = null
     }
-  }, [mode, largePile])
+  }, [])
   useEffect(() => {
-    void runtime.current?.setBooks(latest.current.books)
+    const instance = runtime.current
+    if (!instance) return
+    setReady(false)
+    void instance.setBooks(latest.current.books).catch((err: unknown) => {
+      if (runtime.current !== instance) return
+      console.error('Unable to prepare the reading table', err)
+      instance.destroy()
+      runtime.current = null
+      latest.current.onError?.()
+    })
   }, [batchKey])
+  useEffect(() => {
+    if (props.started) runtime.current?.start()
+  }, [props.started])
   useEffect(() => {
     runtime.current?.select(props.selectedId)
   }, [props.selectedId])
@@ -1382,47 +1411,38 @@ export default function AfterHours3D(
       className='physics-room'
       ref={stage}
       data-physics-ready={ready || undefined}
+      data-physics-started={(ready && props.started) || undefined}
     >
-      <RoomBackdrop
-        room='after-hours'
-        living
-        rain={props.rain}
-        fire={props.fire}
-      />
+      <RoomBackdrop living rain={props.rain} fire={props.fire} />
       <div className='scene-frame physics-books-frame' ref={frame} />
-      {!ready && (
-        <div className='physics-loading'>
-          {failed
-            ? 'The table could not be loaded. Please refresh to try again.'
-            : 'Laying out the books…'}
-        </div>
-      )}
-      {hovered && !props.selectedId && (
+      {props.started && hovered && !props.selectedId && (
         <div className='physics-book-caption'>
           {hovered.title}
           <small>{hovered.authors.join(', ')}</small>
         </div>
       )}
       <div className='physics-accessible-books' aria-label='Books on the table'>
-        {visibleBooks.map((book) => (
-          <button
-            key={book.id}
-            data-physical-book-id={book.id}
-            type='button'
-            onClick={() => runtime.current?.pickUp(book.id)}
-            onFocus={() => {
-              runtime.current?.focus(book.id)
-              setHovered(book)
-            }}
-            onBlur={() => {
-              runtime.current?.focus()
-              setHovered(null)
-            }}
-            aria-label={`Pick up ${book.title} by ${book.authors.join(', ')}`}
-          >
-            {book.title}
-          </button>
-        ))}
+        {props.started &&
+          ready &&
+          visibleBooks.map((book) => (
+            <button
+              key={book.id}
+              data-physical-book-id={book.id}
+              type='button'
+              onClick={() => runtime.current?.pickUp(book.id)}
+              onFocus={() => {
+                runtime.current?.focus(book.id)
+                setHovered(book)
+              }}
+              onBlur={() => {
+                runtime.current?.focus()
+                setHovered(null)
+              }}
+              aria-label={`Pick up ${book.title} by ${book.authors.join(', ')}`}
+            >
+              {book.title}
+            </button>
+          ))}
       </div>
     </div>
   )

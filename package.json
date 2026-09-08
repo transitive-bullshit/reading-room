@@ -1,11 +1,11 @@
 {
-  "name": "TODO",
+  "name": "reading-room",
   "version": "0.0.0",
   "private": true,
-  "description": "TODO",
+  "description": "A cozy home for your favorite books",
   "license": "MIT",
   "author": "Travis Fischer <travis@transitivebullsh.it>",
-  "repository": "https://github.com/transitive-bullshit/todo",
+  "repository": "https://github.com/transitive-bullshit/reading-room",
   "type": "module",
   "scripts": {
     "dev": "PORTLESS_HTTPS=0 PORTLESS_PORT=1355 PORTLESS_SYNC_HOSTS=0 portless run --name book-library next dev --hostname 127.0.0.1",
@@ -25,10 +25,13 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
     "@vercel/analytics": "^2.0.1",
+    "clsx": "^2.1.1",
     "cn": "^0.2.5",
+    "motion": "^13.2.0",
     "next": "^16.3.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.6.0",
     "three": "^0.185.1"
   },
   "devDependencies": {

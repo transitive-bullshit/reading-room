@@ -1,0 +1,418 @@
+.reading-room {
+  --room-ivory: #f6edd9;
+  --room-gold: #cab28a;
+  --gold: #ddc699;
+  --ease-room: cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  min-height: 660px;
+  overflow: hidden;
+  color: var(--room-ivory);
+  background: #14110c;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+.room-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+.room-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(8 9 7 / 62%),
+      transparent 33%,
+      transparent 77%,
+      rgb(7 8 6 / 80%)
+    ),
+    radial-gradient(ellipse at center, transparent 43%, rgb(5 8 6 / 25%));
+}
+.room-header {
+  position: absolute;
+  top: 35px;
+  left: 42px;
+  right: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  pointer-events: none;
+}
+.room-wordmark {
+  display: block;
+  width: min(235px, 100%);
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+.room-wordmark:disabled {
+  opacity: 1;
+}
+.room-wordmark img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.room-wordmark .room-icon {
+  display: none;
+}
+.room-header .room-create-button {
+  justify-self: end;
+  width: min(270px, 52vw);
+}
+.room-atmosphere button:active,
+.room-replay:active {
+  transform: scale(0.97);
+}
+.room-navigation {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+.room-heading {
+  position: absolute;
+  top: clamp(108px, 14svh, 144px);
+  left: 50%;
+  width: min(820px, calc(100% - 48px));
+  transform: translateX(-50%);
+  text-align: center;
+}
+.room-navigation h1 {
+  margin: 0;
+  font:
+    italic 400 clamp(32px, 4.2vw, 56px)/1.12 Georgia,
+    'Times New Roman',
+    serif;
+  letter-spacing: -1.4px;
+  text-shadow: 0 2px 20px #000;
+  text-wrap: balance;
+}
+.room-book-count {
+  margin: 10px 0 0;
+  color: #cbb99b;
+  font:
+    12px/1.4 Georgia,
+    serif;
+  font-variant-numeric: tabular-nums;
+}
+.reading-room:has(.physics-book-caption) .room-heading {
+  opacity: 0;
+}
+.reading-room .physics-book-caption {
+  top: clamp(110px, 14svh, 145px);
+  width: min(720px, 80%);
+}
+.room-entry {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: min(380px, calc(100% - 48px));
+  text-align: center;
+  pointer-events: none;
+  z-index: 11;
+}
+.room-entry p {
+  margin: 14px 0 0;
+  color: #ebd4ae;
+  font-size: 12px;
+}
+.room-footer {
+  position: absolute;
+  bottom: 33px;
+  left: 42px;
+  right: 42px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+  gap: 24px;
+}
+.room-replay {
+  display: grid;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #e3d0b140;
+  border-radius: 50%;
+  color: #e2d2b7;
+  background: #17161380;
+  font-size: 18px;
+  pointer-events: auto;
+  transition: background 150ms ease-out;
+}
+.room-atmosphere {
+  display: flex;
+  gap: 17px;
+  align-items: center;
+  pointer-events: auto;
+  padding-bottom: 3px;
+}
+.room-atmosphere button {
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+  color: #e3d3ba;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.room-atmosphere button span {
+  color: #a08e73;
+  font-size: 9px;
+  margin-left: 4px;
+}
+.room-atmosphere button[aria-pressed='true'] span {
+  color: #e0bb7b;
+}
+.room-atmosphere {
+  margin-left: auto;
+}
+.room-grouping {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  width: min(410px, calc(100% - 48px));
+  margin: 0;
+  text-align: center;
+  pointer-events: none;
+}
+.room-group-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+}
+.room-group-controls > [role='group'] {
+  pointer-events: auto;
+  display: flex;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid #d7bf8938;
+  border-radius: 30px;
+  background: #171613c9;
+  box-shadow: 0 4px 22px #0003;
+  backdrop-filter: blur(12px);
+}
+.room-group-controls > [role='group'] button {
+  min-width: 0;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 24px;
+  color: #c5b9a6;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+  transition:
+    background 150ms var(--ease-room),
+    color 150ms var(--ease-room);
+}
+.room-grouping button[aria-pressed='true'] {
+  color: #f7ebd3;
+  background: #d9c09829;
+  box-shadow: inset 0 0 0 1px #e9d0a225;
+}
+.room-grouping button:focus-visible {
+  outline: 1px solid #e2c995;
+  outline-offset: 2px;
+}
+.room-group-breadcrumb {
+  order: -1;
+  width: 100%;
+  color: #edddbd;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.room-group-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.room-group-breadcrumb li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.room-group-breadcrumb button {
+  pointer-events: auto;
+  padding: 5px 3px;
+  border: 0;
+  border-radius: 3px;
+  color: #cbbb9e;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #cbbb9e60;
+  text-underline-offset: 4px;
+  transition: color 150ms var(--ease-room);
+}
+.room-group-breadcrumb [aria-current] {
+  font-family: var(--font-reading-serif), Georgia, serif;
+  font-size: 15px;
+}
+.room-group-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.room-socials {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+.room-socials a {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-height: 32px;
+  color: #b8a88c;
+  text-decoration: none;
+  font-size: 0;
+  transition: color 150ms ease-out;
+}
+.room-socials svg {
+  width: 17px;
+  height: 17px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .room-socials a:hover {
+    color: #f0ddba;
+  }
+  .room-group-breadcrumb button:hover {
+    color: #f6edd9;
+  }
+  .room-replay:hover {
+    background: rgb(200 171 120 / 17%);
+  }
+  .room-atmosphere button:hover {
+    color: white;
+  }
+}
+@media (max-width: 950px) {
+  .room-header {
+    left: 25px;
+    right: 25px;
+    top: 28px;
+  }
+  .room-footer {
+    left: 25px;
+    right: 25px;
+    bottom: 26px;
+  }
+  .room-atmosphere {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 4px 14px;
+  }
+}
+@media (min-width: 621px) and (max-width: 700px) {
+  .room-grouping {
+    bottom: 88px;
+  }
+}
+@media (max-width: 620px) {
+  .reading-room {
+    min-height: 660px;
+  }
+  .room-header {
+    top: 24px;
+    left: 21px;
+    right: 21px;
+    gap: 12px;
+  }
+  .room-wordmark {
+    width: 100%;
+    max-width: 190px;
+  }
+  .room-heading {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    margin: 110px auto 0;
+    width: calc(100% - 42px);
+  }
+  .room-navigation h1 {
+    font-size: 32px;
+    letter-spacing: -0.9px;
+  }
+  .room-grouping {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    margin: 20px auto 0;
+  }
+  .room-group-breadcrumb {
+    order: 0;
+  }
+  .room-group-controls > [role='group'] button {
+    padding: 9px 10px;
+  }
+
+  .room-footer {
+    left: 21px;
+    right: 21px;
+    bottom: 26px;
+    gap: 18px;
+  }
+  .room-atmosphere {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 4px 14px;
+  }
+  .room-atmosphere button {
+    font-size: 9px;
+    text-align: left;
+  }
+}
+@media (max-width: 360px) {
+  .room-wordmark .room-logo {
+    display: none;
+  }
+  .room-wordmark .room-icon {
+    display: block;
+    width: 55px;
+    height: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-room *,
+  .reading-room *::before,
+  .reading-room *::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+  }
+}

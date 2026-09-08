@@ -260,7 +260,7 @@ export function BookDetail({
         const replacement = label
           ? Array.from(
               document.querySelectorAll<HTMLElement>(
-                '.table-book, .physics-accessible-books button'
+                '.physics-accessible-books button'
               )
             ).find(
               (element) =>
@@ -270,7 +270,7 @@ export function BookDetail({
         const destination = visible(trigger)
           ? trigger
           : (replacement ??
-            document.querySelector<HTMLElement>('.room-library-button'))
+            document.querySelector<HTMLElement>('.room-create-button'))
         destination?.focus({ preventScroll: true })
       }
     }

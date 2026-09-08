@@ -1,0 +1,75 @@
+.expanding-arrow-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 80px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid #99794c;
+  border-radius: 7px;
+  color: #f5e4c2;
+  background: linear-gradient(160deg, #3b2b1c, #241b13);
+  box-shadow:
+    inset 0 1px 0 #fff1,
+    0 10px 30px #0006;
+  pointer-events: auto;
+  user-select: none;
+  font:
+    22px/1.15 Georgia,
+    'Times New Roman',
+    serif;
+}
+.expanding-arrow-button:focus-visible {
+  outline: 2px solid var(--room-gold, #cab28a);
+  outline-offset: 6px;
+}
+.expanding-arrow-button:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+.expanding-arrow-accent {
+  position: absolute;
+  inset: 6px auto 6px 6px;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 3px;
+  color: #392818;
+  background: linear-gradient(165deg, #f5e4c2, #e4c99b 68%, #d8b780);
+  box-shadow: inset 0 1px 0 #fff5;
+}
+.expanding-arrow-chevron {
+  width: 20px;
+  height: 28px;
+}
+.expanding-arrow-label {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  margin: 14px 20px 14px 76px;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.expanding-arrow-button.expanding-arrow-button--compact {
+  min-height: 48px;
+  font-size: 13px;
+  line-height: 1.25;
+}
+.expanding-arrow-button--compact .expanding-arrow-chevron {
+  width: 12px;
+  height: 17px;
+}
+.expanding-arrow-button--compact .expanding-arrow-label {
+  margin: 0 12px 0 48px;
+}
+@media (max-width: 620px) {
+  .expanding-arrow-button:not(.expanding-arrow-button--compact) {
+    font-size: 21px;
+  }
+  .expanding-arrow-button:not(.expanding-arrow-button--compact)
+    .expanding-arrow-label {
+    margin-right: 14px;
+    margin-left: 66px;
+  }
+}

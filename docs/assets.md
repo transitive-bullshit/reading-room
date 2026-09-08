@@ -11,13 +11,13 @@
 | `app/opengraph-image.jpg`, `app/opengraph-image.alt.txt` | 1200 × 630 Open Graph image and descriptive alt text, registered by Next.js |
 | `docs/assets/readme-banner.jpg` | 1600 × 600 brand banner used in the root README |
 | `public/covers/originals/*.jpg` | Original covers for all 192 library records |
-| `public/covers/textures/*.jpg` | The 86 accepted book textures used on the physical table and in material previews |
-| `public/rooms/after-hours.jpg` | The selected room background for both active piles |
+| `public/covers/textures/*.jpg` | 86 accepted textures, including all 42 featured table books |
+| `public/rooms/after-hours.jpg` | The selected landing-page room background |
 | `public/audio/background-loop.mp3` | The edited ambient loop |
 | `public/audio/book-impacts/*.wav` | The 22 selected table and book contact sounds |
 | `public/audio/book-impacts/source.json` | Recording provenance, source timestamps, processing, and checksums |
 
-Original cover URLs and local paths are recorded in `data/library.json` and `data/goodreads-cover-manifest.json`. Cover aspect ratios are in `data/cover-aspects.json`. Keep those references consistent when replacing a file. The physical texture membership is declared in `app/prototypes/reading-room/variants/photo-scene.tsx`; it currently matches the full five-star collection.
+Original cover URLs and local paths are recorded in `data/library.json` and `data/goodreads-cover-manifest.json`. Cover aspect ratios are in `data/cover-aspects.json`. Keep those references consistent when replacing a file. Featured table membership is declared in `data/featured-book-ids.json`, independently of ratings. Each featured ID has a texture under `public/covers/textures/`; the renderer falls back to the original cover if a texture cannot load. Unused accepted textures are retained for library material artwork and future curation.
 
 The physical textures were promoted from the material study: 69 accepted generated edits and 17 original-cover fallbacks. They retain their existing JPEG bytes and appearance. Large PNG masters and generation-by-generation records are local working assets. Original covers remain available for the library and primary detail artwork.
 
@@ -44,6 +44,6 @@ The cleanup preserved the working files locally in these locations:
 - `work/assets/rooms/`: unused room plates, references, Blender scene, model, and previews.
 - `work/scripts/blender/`: the experimental room generator.
 
-Historical Still, Rain, and Spatial components remain in `app/`, outside the active picker. Their alternative room assets are archived locally. Bringing one of those directions back requires deliberately promoting its required assets into `public/` again.
+The retired Still, Rain, Spatial, small-pile, and photo-book components and picker are archived in `work/retired-prototypes/`. They are outside the application and build graph. Their alternative room assets remain archived locally.
 
 For a new asset, keep only the selected runtime export in `public/`, retain useful provenance in this documentation or a small manifest, and place source files and alternatives in `work/`. Verify all live references after moving files; filename similarity alone does not determine whether an asset is used.

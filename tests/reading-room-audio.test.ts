@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test, type TestContext } from 'node:test'
 
-import { BOOK_IMPACT_SAMPLES } from '../app/prototypes/reading-room/book-impact-samples'
-import { createRoomAudio } from '../app/prototypes/reading-room/room-audio'
+import { BOOK_IMPACT_SAMPLES } from '../app/reading-room/book-impact-samples'
+import { createRoomAudio } from '../app/reading-room/room-audio'
 
 class Param {
   value = 0
@@ -54,18 +54,25 @@ function replaceGlobal(t: TestContext, key: string, value: unknown) {
   })
 }
 
-function audioEnvironment(t: TestContext, deferImpacts = false) {
+function audioEnvironment(
+  t: TestContext,
+  deferImpacts = false,
+  deferResume = false,
+  deferMusic = false
+) {
   const contexts: Context[] = []
   let finishDecode: ((value: unknown) => void) | undefined
   const finishImpacts: (() => void)[] = []
+  let finishResume: (() => void) | undefined
   class Context {
-    state = 'running'
+    state = deferResume ? 'suspended' : 'running'
     currentTime = 1
     sampleRate = 24_000
     destination = new AudioNodeDouble()
     gains: AudioNodeDouble[] = []
     sources: AudioNodeDouble[] = []
     closed = false
+    resumes = 0
     constructor() {
       contexts.push(this)
     }
@@ -90,7 +97,17 @@ function audioEnvironment(t: TestContext, deferImpacts = false) {
       })
     }
     async resume() {
-      this.state = 'running'
+      this.resumes++
+      if (!deferResume) {
+        this.state = 'running'
+        return
+      }
+      await new Promise<void>((resolve) => {
+        finishResume = () => {
+          this.state = 'running'
+          resolve()
+        }
+      })
     }
     async close() {
       this.closed = true
@@ -101,6 +118,7 @@ function audioEnvironment(t: TestContext, deferImpacts = false) {
       assert.equal(rate, 24_000, 'decode at the compact asset sample rate')
     }
     decodeAudioData() {
+      if (!deferMusic) return Promise.resolve({ duration: 300 })
       return new Promise((resolve) => {
         finishDecode = resolve
       })
@@ -111,7 +129,9 @@ function audioEnvironment(t: TestContext, deferImpacts = false) {
   return {
     contexts,
     complete: () => finishDecode?.({ duration: 300 }),
-    completeImpacts: () => finishImpacts.splice(0).forEach((finish) => finish())
+    completeImpacts: () =>
+      finishImpacts.splice(0).forEach((finish) => finish()),
+    completeResume: () => finishResume?.()
   }
 }
 
@@ -122,8 +142,172 @@ const sampleResponse = (url: string) => ({
 })
 const isImpact = (url: string) => url.startsWith('/audio/book-impacts/')
 
+await test('entry preparation waits for decoded ambience and landing sounds without resuming or playing', async (t) => {
+  const environment = audioEnvironment(t, false, false, true)
+  const requests: string[] = []
+  replaceGlobal(t, 'fetch', async (url: string) => {
+    requests.push(url)
+    return sampleResponse(url)
+  })
+  const audio = createRoomAudio()
+  t.after(() => audio.dispose())
+  assert.equal(environment.contexts.length, 0)
+  let prepared = false
+  const preparing = Promise.all([audio.prepare(), audio.prepare()]).then(() => {
+    prepared = true
+  })
+  await flush()
+  const context = environment.contexts[0]!
+  assert.equal(environment.contexts.length, 1)
+  assert.equal(context.resumes, 0)
+  assert.deepEqual(
+    new Set(requests),
+    new Set([
+      ...Object.values(BOOK_IMPACT_SAMPLES).flat(),
+      '/audio/background-loop.mp3'
+    ])
+  )
+  assert.equal(requests.length, 23)
+  assert.equal(prepared, false, 'the entry gate must wait for ambient decoding')
+  environment.complete()
+  await preparing
+  assert.equal(prepared, true)
+  audio.setAmbientEnabled(false)
+  audio.setAmbientEnabled(true)
+  audio.setAudioEnabled(false)
+  audio.setAudioEnabled(true)
+  audio.playImpact({ kind: 'table', strength: 1, pan: 0 })
+  await flush()
+  assert.equal(context.state, 'running')
+  assert.equal(
+    context.sources.length,
+    0,
+    'even an already-running context stays silent before entry'
+  )
+  assert.equal(
+    requests.length,
+    23,
+    'preference changes reuse all prepared recordings'
+  )
+  await audio.unlock()
+  assert.equal(requests.length, 23, 'entry requires no further audio download')
+  const music = context.sources.find((source) => source.loop)!
+  assert.equal(music.starts, 1, 'prepared ambience starts as entry completes')
+})
+
+await test('entry resumes synchronously and waits for both the context and decoded landing sounds', async (t) => {
+  for (const first of ['context', 'recordings'] as const) {
+    await t.test(`${first} becomes ready first`, async (t) => {
+      const environment = audioEnvironment(t, true, true)
+      const requests: string[] = []
+      replaceGlobal(t, 'fetch', async (url: string) => {
+        requests.push(url)
+        return sampleResponse(url)
+      })
+      const audio = createRoomAudio()
+      t.after(() => audio.dispose())
+      const preparing = audio.prepare()
+      await flush()
+      const context = environment.contexts[0]!
+      assert.equal(context.resumes, 0)
+      let ready = false
+      const unlocking = audio.unlock().then(() => {
+        ready = true
+      })
+      assert.equal(
+        context.resumes,
+        1,
+        'resume must run in the CTA call stack before yielding'
+      )
+      const overlapping = audio.unlock()
+      assert.equal(
+        context.resumes,
+        1,
+        'overlapping entry requests share the pending resume'
+      )
+      if (first === 'context') environment.completeResume()
+      else environment.completeImpacts()
+      await flush()
+      assert.equal(
+        ready,
+        false,
+        'entry must not release the drop when only one prerequisite is ready'
+      )
+      if (first === 'context') environment.completeImpacts()
+      else environment.completeResume()
+      await Promise.all([preparing, unlocking, overlapping])
+      assert.equal(ready, true)
+      assert.equal(requests.filter(isImpact).length, 22)
+      audio.playImpact({ kind: 'table', strength: 1, pan: 0 })
+      const landing = context.sources.find((source) => !source.loop)!
+      assert.ok(
+        landing,
+        'the first landing immediately after unlock must be audible'
+      )
+      assert.equal(landing.starts, 1)
+      assert.ok(BOOK_IMPACT_SAMPLES.table.includes(landing.buffer!.url!))
+      environment.complete()
+      await flush()
+      assert.equal(context.sources.filter((source) => source.loop).length, 1)
+    })
+  }
+})
+
+await test('stalled audio readiness releases entry after four seconds and remains safe to retry', async (t) => {
+  for (const stalled of ['context', 'recordings', 'request'] as const) {
+    await t.test(`${stalled} stalls`, async (t) => {
+      t.mock.timers.enable({ apis: ['setTimeout'] })
+      const environment = audioEnvironment(
+        t,
+        stalled === 'recordings',
+        stalled === 'context'
+      )
+      let stallRequests = stalled === 'request'
+      replaceGlobal(t, 'fetch', async (url: string) =>
+        stallRequests ? new Promise(() => {}) : sampleResponse(url)
+      )
+      const audio = createRoomAudio()
+      t.after(() => audio.dispose())
+      audio.setAmbientEnabled(false)
+      let ready = false
+      const unlocking = audio.unlock().then(() => {
+        ready = true
+      })
+      await flush()
+      t.mock.timers.tick(3999)
+      await flush()
+      assert.equal(ready, false)
+      t.mock.timers.tick(1)
+      await flush()
+      assert.equal(ready, true, 'audio failure must not strand the entry page')
+      await unlocking
+      environment.completeResume()
+      environment.completeImpacts()
+      await flush()
+      const context = environment.contexts[0]!
+      audio.playImpact({ kind: 'table', strength: 1, pan: 0 })
+      assert.equal(
+        context.sources.length,
+        0,
+        'late completion cannot revive a timed-out attempt'
+      )
+      stallRequests = false
+      const retry = audio.unlock()
+      await flush()
+      environment.completeImpacts()
+      await retry
+      audio.playImpact({ kind: 'table', strength: 1, pan: 0 })
+      assert.equal(
+        context.sources.length,
+        1,
+        'an explicit retry can use the ready recordings'
+      )
+    })
+  }
+})
+
 await test('recorded ambience loads once, loops, and remains independent of book sounds', async (t) => {
-  const environment = audioEnvironment(t)
+  const environment = audioEnvironment(t, false, false, true)
   let requests = 0
   replaceGlobal(t, 'fetch', async (url: string) => {
     if (isImpact(url)) return sampleResponse(url)
@@ -144,12 +328,12 @@ await test('recorded ambience loads once, loops, and remains independent of book
     BOOK_IMPACT_SAMPLES.table.includes(context.sources[0]!.buffer!.url!)
   )
   audio.setAmbientEnabled(true)
-  await audio.unlock()
+  const unlocking = audio.unlock()
   await flush()
   assert.equal(requests, 1, 'overlapping gestures share one request')
   audio.setAmbientEnabled(false)
   environment.complete()
-  await flush()
+  await unlocking
   const music = context.sources.find((source) => source.loop)!
   assert.ok(music)
   assert.equal(
@@ -171,26 +355,116 @@ await test('recorded ambience loads once, loops, and remains independent of book
   assert.ok(context.closed)
 })
 
-await test('disposing while ambience decodes cannot start orphaned playback', async (t) => {
+await test('disposing while ambience prepares or unlocks cannot start orphaned playback', async (t) => {
+  for (const action of ['prepare', 'unlock'] as const) {
+    await t.test(action, async (t) => {
+      const environment = audioEnvironment(t, false, false, true)
+      const signals: AbortSignal[] = []
+      replaceGlobal(
+        t,
+        'fetch',
+        async (_url: string, options: { signal: AbortSignal }) => {
+          signals.push(options.signal)
+          return { ok: true, arrayBuffer: async () => new ArrayBuffer(0) }
+        }
+      )
+      const audio = createRoomAudio()
+      const pending = audio[action]()
+      await flush()
+      audio.dispose()
+      await pending
+      environment.complete()
+      await flush()
+      assert.ok(signals.every((signal) => signal.aborted))
+      assert.equal(environment.contexts[0]!.sources.length, 0)
+      assert.equal(environment.contexts[0]!.closed, true)
+    })
+  }
+})
+
+await test('stalled ambient requests and decoding release preparation and ignore abandoned completions', async (t) => {
+  for (const stalled of ['request', 'decode'] as const) {
+    await t.test(stalled, async (t) => {
+      t.mock.timers.enable({ apis: ['setTimeout'] })
+      const environment = audioEnvironment(t, false, false, true)
+      const musicSignals: AbortSignal[] = []
+      let finishRequest: (() => void) | undefined
+      replaceGlobal(
+        t,
+        'fetch',
+        async (url: string, options: { signal: AbortSignal }) => {
+          if (isImpact(url)) return sampleResponse(url)
+          musicSignals.push(options.signal)
+          if (stalled === 'request' && musicSignals.length === 1)
+            await new Promise<void>((resolve) => {
+              finishRequest = resolve
+            })
+          return sampleResponse(url)
+        }
+      )
+      const audio = createRoomAudio()
+      t.after(() => audio.dispose())
+      let ready = false
+      const preparing = audio.prepare().then(() => {
+        ready = true
+      })
+      await flush()
+      t.mock.timers.tick(3999)
+      await flush()
+      assert.equal(ready, false)
+      t.mock.timers.tick(1)
+      await preparing
+      assert.equal(ready, true, 'ambient failure cannot strand the entry gate')
+      assert.equal(musicSignals[0]?.aborted, true)
+      finishRequest?.()
+      environment.complete()
+      await flush()
+      const context = environment.contexts[0]!
+      assert.equal(context.sources.length, 0)
+      assert.equal(context.resumes, 0)
+      const unlocking = audio.unlock()
+      await flush()
+      assert.equal(
+        musicSignals.length,
+        2,
+        'an abandoned decode cannot populate the cache used by a new gesture'
+      )
+      environment.complete()
+      await unlocking
+      const music = context.sources.filter((source) => source.loop)
+      assert.equal(music.length, 1)
+      assert.equal(music[0]!.starts, 1)
+      assert.equal(musicSignals[1]?.aborted, true)
+    })
+  }
+})
+
+await test('an unavailable ambient track keeps prepared impacts usable and retries only the track', async (t) => {
   const environment = audioEnvironment(t)
-  let signal: AbortSignal | undefined
-  replaceGlobal(
-    t,
-    'fetch',
-    async (_url: string, options: { signal: AbortSignal }) => {
-      signal = options.signal
-      return { ok: true, arrayBuffer: async () => new ArrayBuffer(0) }
+  const requests = new Map<string, number>()
+  replaceGlobal(t, 'fetch', async (url: string) => {
+    const count = (requests.get(url) ?? 0) + 1
+    requests.set(url, count)
+    return {
+      ...sampleResponse(url),
+      ok: isImpact(url) || count > 1
     }
-  )
+  })
   const audio = createRoomAudio()
+  t.after(() => audio.dispose())
+  await audio.prepare()
+  const context = environment.contexts[0]!
+  assert.equal(context.sources.length, 0)
   await audio.unlock()
-  await flush()
-  audio.dispose()
-  environment.complete()
-  await flush()
-  assert.equal(signal?.aborted, true)
-  assert.equal(environment.contexts[0]!.sources.length, 0)
-  assert.equal(environment.contexts[0]!.closed, true)
+  assert.equal(requests.get('/audio/background-loop.mp3'), 2)
+  assert.ok(
+    Object.values(BOOK_IMPACT_SAMPLES)
+      .flat()
+      .every((url) => requests.get(url) === 1)
+  )
+  audio.playImpact({ kind: 'table', strength: 1, pan: 0 })
+  assert.equal(context.sources.filter((source) => source.loop).length, 1)
+  assert.equal(context.sources.filter((source) => !source.loop).length, 1)
 })
 
 await test('desk and book contacts use only their selected recordings, with balanced nonrepeating draws', async (t) => {
@@ -372,7 +646,7 @@ await test('impact strength, voice limits, and muting keep a busy pile controlle
   assert.ok(context.sources.every((source) => source.buffer === null))
 })
 
-await test('exactly the lowest quarter of book-contact rolls play while table landings bypass thinning', async (t) => {
+await test('exactly the lowest 80 percent of book-contact rolls play while table landings bypass thinning', async (t) => {
   const environment = audioEnvironment(t)
   replaceGlobal(t, 'fetch', async (url: string) => sampleResponse(url))
   let roll = 0
@@ -402,19 +676,19 @@ await test('exactly the lowest quarter of book-contact rolls play while table la
   }
   assert.deepEqual(
     accepted,
-    Array.from({ length: 25 }, (_, index) => index)
+    Array.from({ length: 80 }, (_, index) => index)
   )
-  roll = 0.249999
+  roll = 0.799999
   const beforeBoundary = context.sources.length
   audio.playImpact({ kind: 'book', strength: 0.8, pan: 0 })
   assert.equal(context.sources.length, beforeBoundary + 1)
   context.sources.at(-1)!.onended?.()
-  roll = 0.25
+  roll = 0.8
   audio.playImpact({ kind: 'book', strength: 0.8, pan: 0 })
   assert.equal(
     context.sources.length,
     beforeBoundary + 1,
-    'the 25% boundary itself is suppressed'
+    'the 80% boundary itself is suppressed'
   )
 })
 

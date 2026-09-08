@@ -6,39 +6,40 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import * as THREE from 'three'
 
+import { getFeaturedBooks } from '../lib/featured-books'
 import type { LibraryData } from '../lib/library-schema'
-import type { BookImpact } from '../app/prototypes/reading-room/room-audio'
+import type { BookImpact } from '../app/reading-room/room-audio'
 import {
   alignCamera,
   makeCamera,
   offscreenDropPosition
-} from '../app/prototypes/reading-room/variants/physics-camera'
+} from '../app/reading-room/scene/physics-camera'
 import {
   applyBookDrag,
   createDragTarget,
   updateDragTarget
-} from '../app/prototypes/reading-room/variants/physics-drag'
-import { applyHeldBookTorque } from '../app/prototypes/reading-room/variants/physics-held'
-import { createBookImpacts } from '../app/prototypes/reading-room/variants/physics-impacts'
-import { getPileDrop } from '../app/prototypes/reading-room/variants/physics-pile'
-import { createMoundMemory } from '../app/prototypes/reading-room/variants/physics-mound'
+} from '../app/reading-room/scene/physics-drag'
+import { applyHeldBookTorque } from '../app/reading-room/scene/physics-held'
+import { createBookImpacts } from '../app/reading-room/scene/physics-impacts'
+import { getPileDrop } from '../app/reading-room/scene/physics-pile'
+import { createMoundMemory } from '../app/reading-room/scene/physics-mound'
 import {
   buildPileGroups,
   type PileGrouping
-} from '../app/prototypes/reading-room/variants/pile-groups'
+} from '../app/reading-room/scene/pile-groups'
 import {
   applyBookRearrangement,
   createBookRearrangement,
   makePileArrangement,
   type BookRearrangement
-} from '../app/prototypes/reading-room/variants/physics-rearrange'
+} from '../app/reading-room/scene/physics-rearrange'
 import {
   bookDimensions,
   loadPhysics,
   makeBookBody,
   makeWorld,
   PHYSICS_STEP
-} from '../app/prototypes/reading-room/variants/physics-world'
+} from '../app/reading-room/scene/physics-world'
 
 const read = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -47,25 +48,7 @@ const aspects = JSON.parse(read('data/cover-aspects.json')) as Record<
   string,
   number
 >
-// Read the actual display order rather than maintaining a duplicate list.
-const displaySource = read('app/prototypes/reading-room/reading-room.tsx')
-const displayBlock = displaySource.match(
-  /const displayIds = \[([\s\S]*?)\]/
-)?.[1]
-if (!displayBlock) throw new Error('Cannot find the live displayIds list')
-const displayIds = [...displayBlock.matchAll(/'([^']+)'/g)].map(
-  (match) => match[1]!
-)
-const books = [
-  ...displayIds.map((id) => {
-    const book = library.books.find((item) => item.id === id)
-    if (!book) throw new Error(`Missing display book ${id}`)
-    return book
-  }),
-  ...library.books.filter(
-    (book) => book.personal.rating === 5 && !displayIds.includes(book.id)
-  )
-]
+const books = getFeaturedBooks(library.books)
 const physics = await loadPhysics()
 type Point = { x: number; y: number; z: number }
 type Event = BookImpact & { timeMs: number }
@@ -430,14 +413,19 @@ function summary(events: Event[], durationMs: number) {
 }
 
 const trackedSources = [
-  'physics-world',
-  'physics-camera',
-  'physics-pile',
-  'physics-drag',
-  'physics-held',
-  'physics-impacts',
-  'physics-rearrange'
-].map((name) => `app/prototypes/reading-room/variants/${name}.ts`)
+  ...[
+    'physics-world',
+    'physics-camera',
+    'physics-pile',
+    'physics-drag',
+    'physics-held',
+    'physics-impacts',
+    'physics-rearrange',
+    'pile-groups'
+  ].map((name) => `app/reading-room/scene/${name}.ts`),
+  'data/featured-book-ids.json',
+  'lib/featured-books.ts'
+]
 const output = {
   generatedAt: new Date().toISOString(),
   script: fileURLToPath(import.meta.url),
@@ -507,13 +495,13 @@ function save(
   )
 }
 
-const simulations = [simulation(25), simulation(books.length)]
+const simulations = [simulation(books.length)]
 try {
   for (const sim of simulations) {
     sim.advance(12)
     save(
       sim,
-      `${sim.entries.length === 25 ? 'the-pile-25' : 'big-pile-86'}-initial-drop`,
+      `featured-pile-${sim.entries.length}-initial-drop`,
       0,
       12_000,
       0,
@@ -535,7 +523,7 @@ try {
     })
     save(
       sim,
-      `${sim.entries.length === 25 ? 'the-pile-25' : 'big-pile-86'}-six-drags`,
+      `featured-pile-${sim.entries.length}-six-drags`,
       start,
       18_000,
       eventStart,

@@ -138,19 +138,6 @@
   white-space: nowrap;
 }
 
-.physics-loading {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 58%;
-  text-align: center;
-  color: #d7c6a3;
-  font:
-    italic 15px Georgia,
-    serif;
-  pointer-events: none;
-}
-
 @media (max-width: 700px) {
   .physics-book-caption {
     top: 27%;

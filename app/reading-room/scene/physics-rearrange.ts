@@ -114,7 +114,7 @@ export function makePileArrangement(
         return wide || b.body.translation().y - a.body.translation().y
       })
     const heights = [0.008, 0.008]
-    const twoStacks = members.length > 8
+    const twoStacks = members.length >= 5
     const laneOffset =
       Math.max(
         1.4,

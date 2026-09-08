@@ -5,14 +5,14 @@ import {
   applyBookDrag,
   createDragTarget,
   updateDragTarget
-} from '../app/prototypes/reading-room/variants/physics-drag'
+} from '../app/reading-room/scene/physics-drag'
 import {
   bookDimensions,
   loadPhysics,
   makeBookBody,
   makeWorld,
   PHYSICS_STEP
-} from '../app/prototypes/reading-room/variants/physics-world'
+} from '../app/reading-room/scene/physics-world'
 
 await test('a dragged physical book follows a moving pointer within 50ms', async (t) => {
   const physics = await loadPhysics()

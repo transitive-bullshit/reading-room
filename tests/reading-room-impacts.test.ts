@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import { test, type TestContext } from 'node:test'
 
-import type { BookImpact } from '../app/prototypes/reading-room/room-audio'
-import { createBookImpacts } from '../app/prototypes/reading-room/variants/physics-impacts'
+import type { BookImpact } from '../app/reading-room/room-audio'
+import { createBookImpacts } from '../app/reading-room/scene/physics-impacts'
 import {
   bookDimensions,
   loadPhysics,
   makeBookBody,
   makeWorld,
   PHYSICS_STEP
-} from '../app/prototypes/reading-room/variants/physics-world'
+} from '../app/reading-room/scene/physics-world'
 
 async function setup(t: TestContext) {
   const physics = await loadPhysics()
