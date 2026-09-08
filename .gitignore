@@ -43,3 +43,6 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# local experiments, source masters, and temporary artifacts
+/work/

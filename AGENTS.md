@@ -5,7 +5,16 @@
 - no semicolons
 - oxfmt for formatting (`pnpm fix:format`)
 - oxlint for linting (`pnpm fix:lint`)
-- let display text wrap within its grid or box geometry; reserve character-based width measures (`ch`/`em`) for deliberate prose reading lengths
+
+## Context
+
+- For interface changes, read [the design decisions](docs/design.md).
+- For book motion, collisions, or grouping, read [the physics context](docs/physics.md).
+- For sound behavior or sample changes, read [the audio context](docs/audio.md).
+- For adding, replacing, or moving assets, read [the asset layout](docs/assets.md).
+- Keep lasting documentation in `docs/`.
+- Keep temporary experiments, source masters, and review artifacts in the git-ignored `work/` directory.
+- `public/` contains assets served by the site.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

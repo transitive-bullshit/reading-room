@@ -1,0 +1,158 @@
+.physics-room {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pinch-zoom;
+}
+
+.physics-room.is-over-book {
+  cursor: grab;
+}
+.physics-room.is-dragging {
+  cursor: grabbing;
+}
+
+.physics-books-frame {
+  pointer-events: none;
+  z-index: 3;
+}
+
+.physics-books-frame canvas {
+  width: 1600px;
+  height: 900px;
+  display: block;
+  pointer-events: none;
+}
+
+.physics-pile-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.physics-pile-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  appearance: none;
+  width: 220px;
+  min-width: 0;
+  min-height: calc(44px / var(--scene-scale, 1));
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #efddba;
+  text-shadow:
+    0 2px 6px #120b04,
+    0 0 12px #120b04;
+  background: radial-gradient(ellipse, rgb(26 16 8 / 68%), transparent 72%);
+  font: inherit;
+  font-family: var(--font-reading-serif), Georgia, serif;
+  font-size: max(17px, calc(13px / var(--scene-scale, 1)));
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.15;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.physics-pile-label:focus-visible {
+  z-index: 1;
+  outline: calc(2px / var(--scene-scale, 1)) solid #e8d3a7;
+  outline-offset: calc(3px / var(--scene-scale, 1));
+  background-color: rgb(26 16 8 / 88%);
+  color: #fff0cc;
+}
+
+.physics-pile-label:disabled {
+  cursor: default;
+}
+
+.physics-pile-label small {
+  display: block;
+  margin-top: 4px;
+  color: #c4b08a;
+  font-family: var(--font-reading-sans), sans-serif;
+  font-size: max(9px, calc(9px / var(--scene-scale, 1)));
+  line-height: 1.2;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .physics-pile-label:not(:disabled):hover {
+    border-color: rgb(221 198 153 / 30%);
+    background-color: rgb(26 16 8 / 48%);
+    color: #fff0cc;
+  }
+}
+
+.physics-book-caption {
+  position: absolute;
+  top: 37%;
+  bottom: auto;
+  left: 50%;
+  width: min(80%, 440px);
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 4;
+  color: #f1e5c7;
+  text-shadow: 0 2px 10px #000;
+  font-family: var(--font-reading-serif), Georgia, serif;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.physics-book-caption small {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-reading-sans), sans-serif;
+  font-size: 10px;
+  color: #c8b997;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.physics-accessible-books {
+  position: absolute;
+  z-index: 5;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.physics-accessible-books button {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.physics-loading {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 58%;
+  text-align: center;
+  color: #d7c6a3;
+  font:
+    italic 15px Georgia,
+    serif;
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .physics-book-caption {
+    top: 27%;
+  }
+}

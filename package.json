@@ -8,7 +8,7 @@
   "repository": "https://github.com/transitive-bullshit/todo",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "PORTLESS_HTTPS=0 PORTLESS_PORT=1355 PORTLESS_SYNC_HOSTS=0 portless run --name book-library next dev --hostname 127.0.0.1",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "oxlint",
@@ -23,11 +23,13 @@
     "fix:lint": "oxlint --fix"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
     "@vercel/analytics": "^2.0.1",
     "cn": "^0.2.5",
     "next": "^16.3.4",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@fisch0920/config": "^2.1.4",
@@ -35,11 +37,13 @@
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@types/three": "^0.185.4",
     "lint-staged": "^17.5.0",
     "npm-run-all2": "^9.0.3",
     "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
     "oxlint-tsgolint": "^7.0.2001",
+    "portless": "^0.15.6",
     "simple-git-hooks": "^2.14.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",
@@ -55,7 +59,7 @@
     ]
   },
   "engines": {
-    "node": ">=22.13"
+    "node": ">=24"
   },
   "packageManager": "pnpm@12.3.4"
 }
