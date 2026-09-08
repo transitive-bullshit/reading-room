@@ -1,4 +1,4 @@
-# Reading room design
+# Reading Room design
 
 The reading table makes book discovery physical: readers move through a heap, uncover a title, and open a clear reading surface. The After Hours photograph, warm light, matte books, and restrained controls establish the room's character.
 

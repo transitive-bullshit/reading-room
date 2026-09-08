@@ -6,7 +6,7 @@ import type { LibraryData } from '@/lib/library-schema'
 import { ReadingRoom } from './reading-room'
 
 export const metadata: Metadata = {
-  title: 'The Reading Room — The Piles',
+  title: 'Reading Room — The Piles',
   description:
     'Two studies in physical browsing: The Pile and The Big Pile, with all 86 five-star books.',
   robots: { index: false, follow: false }

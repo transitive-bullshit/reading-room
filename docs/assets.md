@@ -27,6 +27,8 @@ The brand assets preserve the selected Open Book direction from the imagegen log
 
 The social image and README banner were composed with imagegen using the After Hours room and approved Open Book logo as references, adding a small pile of clothbound books. They were resized to their delivery dimensions and compressed as JPEGs. Generation masters and prompts remain under `work/design/social-assets/`.
 
+The current logo, social image, and banner use the shortened name **Reading Room** and a wider icon-to-name gap, approximately one quarter of the icon’s width. Name and spacing revision masters are archived under `work/design/social-assets/reading-room/`.
+
 The chosen After Hours background was generated as an empty, tactile walnut tabletop in a warm mansion library, with a cool rainy window and a distant fireplace. The empty plate lets real book meshes provide the perspective, shadows, and interaction. The [runtime photograph](../public/rooms/after-hours.jpg) is the definitive framing reference.
 
 The [royal salon concept](concepts/royal-salon-2.jpg) preserves one earlier reference for the emerald, walnut, and warm/cool lighting direction. Its baked-in books are concept imagery. It is documentation only.

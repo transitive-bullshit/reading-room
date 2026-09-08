@@ -1,9 +1,10 @@
-# The Reading Room
+# Reading Room
 
 Brand identity for future site design, README updates, and marketing assets.
 
-- **Brand name:** The Reading Room
+- **Brand name:** Reading Room
   - Literal, welcoming, and quietly atmospheric. It names a place you’d like to spend time, without asking your bookshelf to make a statement.
+  - Capitalize both words and use the name without a leading article.
 - **Mantra:** Make yourself at home.
 - **One-liner:** A cozy home for your favorite books
 - **Vibe:** A comfortable chair, warm lamplight, rain outside, and familiar books within reach.
@@ -15,6 +16,8 @@ No separate descriptive one-liner is needed.
 
 The selected **Open Book** treatment pairs an open book and a lifted-page flourish with a warm serif wordmark. The lettering is saved as vector outlines, so no font installation is required.
 
+The horizontal logo leaves a gap of one quarter of the icon’s width between the book and the name. This spacing is built into the reusable logo exports; preserve it when composing new brand assets.
+
 | Asset | SVG | Transparent PNG |
 | --- | --- | --- |
 | Logo, parchment | [logo.svg](../public/brand/logo.svg) | [logo.png](../public/brand/logo.png) |
@@ -22,7 +25,7 @@ The selected **Open Book** treatment pairs an open book and a lifted-page flouri
 | Logo, dark | [logo-dark.svg](../public/brand/logo-dark.svg) | [logo-dark.png](../public/brand/logo-dark.png) |
 | Icon, dark | [icon-dark.svg](../public/brand/icon-dark.svg) | [icon-dark.png](../public/brand/icon-dark.png) |
 
-Use parchment (`#E2CEAA`) on the reading room photograph and other dark backgrounds. Use dark walnut (`#35261D`) on light backgrounds. Prefer SVG for the site and scalable artwork; PNG logos are 2400 px wide and icons are 1024 px wide.
+Use parchment (`#E2CEAA`) on the room photograph and other dark backgrounds. Use dark walnut (`#35261D`) on light backgrounds. Prefer SVG for the site and scalable artwork; PNG logos are 2400 px wide and icons are 1024 px wide.
 
 The isolated icon is tightly cropped with no horizontal padding. Preserve its proportions and apply any layout spacing outside the asset. Square favicons fill the full width, with only the vertical space needed to center the wider book shape.
 
@@ -30,7 +33,7 @@ Next.js automatically registers [app/icon.svg](../app/icon.svg) for SVG-capable 
 
 ## Social image and README banner
 
-Both images combine the reading room background, the parchment Open Book logo, and a small pile of books. Keep these compositions simple: no extra slogans, badges, or interface elements.
+Both images combine the room background, the parchment Open Book logo, and a small pile of books. Keep these compositions simple: no extra slogans, badges, or interface elements.
 
 | Asset | Dimensions | Use |
 | --- | --- | --- |

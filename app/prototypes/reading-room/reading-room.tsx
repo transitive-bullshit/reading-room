@@ -265,11 +265,11 @@ export function ReadingRoom({
       <header className='room-header'>
         <div className='room-wordmark'>
           <span className='room-monogram' aria-hidden='true'>
-            t.
+            r.
           </span>
           <div>
             <span className='room-eyebrow'>A PERSONAL LIBRARY</span>
-            <h1>The Reading Room</h1>
+            <h1>Reading Room</h1>
           </div>
         </div>
         <button

@@ -1,6 +1,6 @@
-# The Reading Room
+# Reading Room
 
-![The Reading Room — a cozy home for your favorite books](docs/assets/readme-banner.jpg)
+![Reading Room — a cozy home for your favorite books](docs/assets/readme-banner.jpg)
 
 Use Node.js 24 or newer and pnpm.
 
@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-[Portless](https://portless.sh) runs the development server at [book-library.localhost:1355](http://book-library.localhost:1355). Open [The Reading Room](http://book-library.localhost:1355/prototypes/reading-room?v=2) for the interactive book piles.
+[Portless](https://portless.sh) runs the development server at [book-library.localhost:1355](http://book-library.localhost:1355). Open [Reading Room](http://book-library.localhost:1355/prototypes/reading-room?v=2) for the interactive book piles.
 
 Portless starts its local HTTP proxy on port 1355 automatically and assigns an available port to Next.js. This configuration avoids certificate trust, administrator access, and hosts-file changes. Git worktrees use separate prefixed hostnames; the terminal prints the URL. Chrome and Firefox resolve `.localhost` hostnames directly.
 
