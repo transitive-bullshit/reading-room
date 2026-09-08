@@ -10,7 +10,7 @@ The landing page at `/` presents one table of 42 featured books. Membership and 
 
 The header uses the parchment [Reading Room logo](../public/brand/logo.svg). Clicking the logo enters once preparation finishes; after entry, it replays the book drop with the current grouping, just like Replay. The main heading is “A cozy home for your favorite books.” Keep the room free of redundant collection labels, stars, and instructions. The previous scene variants and picker have been retired.
 
-The complete 192-book import remains in the data, independent of the homepage curation. The ivory detail view is the full reading surface: preserve complete descriptions, source date precision, and edition-specific Goodreads and Amazon links. The Amazon action reads “View on Amazon.” Original covers remain available to these views.
+The complete 192-book import remains in the data, independent of the homepage curation. The ivory detail view is the full reading surface: preserve complete descriptions, source date precision, and edition-specific Goodreads and Amazon links. The Amazon action reads “View on Amazon.” Show the already-loaded table texture immediately, then reveal the original cover after it has loaded and decoded. Keep the texture visible if the original fails. Each newly opened book starts with its own cover state.
 
 Physical books use the original cover proportions, page-count-based thickness and mass, separate cover boards and page blocks, binding, and contact shadows. Their desk textures use restrained paper grain, wear, and warm/cool illumination. Both covers show the artwork; the back is inverted and mirrored so a face-down book remains identifiable.
 

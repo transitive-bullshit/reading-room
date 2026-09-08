@@ -688,6 +688,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .rr-open-book__cover-image {
+    transition: none;
+  }
   .rr-book-detail::backdrop {
     transition-duration: 120ms;
   }
