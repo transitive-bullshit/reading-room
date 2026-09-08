@@ -1,11 +1,11 @@
 'use client'
 
-import Image from 'next/image'
 import { useId, useLayoutEffect, useRef, type CSSProperties } from 'react'
 
 import type { LibraryBook, LibraryDate } from '@/lib/library-schema'
 import coverAspects from '@/data/cover-aspects.json'
 
+import { BookCover } from './book-cover'
 import './book-detail.css'
 
 interface BookOrigin {
@@ -85,7 +85,6 @@ export function BookDetail({
   const titleId = useId()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const coverRef = useRef<HTMLDivElement>(null)
-  const pickupTextureRef = useRef<HTMLImageElement>(null)
   const pageRef = useRef<HTMLElement>(null)
   const bindingRef = useRef<HTMLDivElement>(null)
   const bookplateRef = useRef<HTMLDivElement>(null)
@@ -231,13 +230,6 @@ export function BookDetail({
         element,
         [{ opacity: 0 }, { opacity: 1 }],
         tablePickup ? 390 : spatial ? 40 : 0
-      )
-    }
-    if (pickupTextureRef.current) {
-      animate(
-        pickupTextureRef.current,
-        [{ opacity: 1 }, { opacity: 0 }],
-        tablePickup ? 570 : spatial ? 120 : 0
       )
     }
     titleRef.current?.focus({ preventScroll: true })
@@ -413,30 +405,7 @@ export function BookDetail({
                 aria-hidden='true'
               />
               <span className='rr-open-book__back-board' aria-hidden='true' />
-              {coverUrl ? (
-                <Image
-                  src={coverUrl}
-                  alt={`Cover of ${book.title}`}
-                  fill
-                  sizes='(max-width: 660px) 100px, (max-width: 1050px) 28vw, 320px'
-                  className='rr-open-book__cover-image'
-                  loading='eager'
-                  unoptimized={!book.cover.localPath}
-                />
-              ) : (
-                <span className='rr-open-book__cover-fallback'>
-                  {book.title}
-                </span>
-              )}
-              {origin && (
-                <img
-                  ref={pickupTextureRef}
-                  className='rr-open-book__pickup-texture'
-                  src={`/covers/textures/${book.id}.jpg`}
-                  alt=''
-                  draggable={false}
-                />
-              )}
+              <BookCover key={`${book.id}:${coverUrl ?? ''}`} book={book} />
             </div>
             <div ref={bookplateRef} className='rr-open-book__bookplate'>
               <span className='rr-open-book__bookplate-mark' aria-hidden='true'>

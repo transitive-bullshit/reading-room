@@ -228,20 +228,27 @@
   pointer-events: none;
 }
 
+.rr-open-book__cover-art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  isolation: isolate;
+}
+
 .rr-open-book__cover-image {
   border-radius: inherit;
   object-fit: fill;
+  transition: opacity 160ms ease-out;
 }
 
-.rr-open-book__pickup-texture {
+.rr-open-book__cover-texture {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: fill;
   border-radius: inherit;
-  opacity: 0;
-  transform: translateZ(0.01px);
   pointer-events: none;
 }
 
